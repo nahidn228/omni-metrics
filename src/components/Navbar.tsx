@@ -10,6 +10,7 @@ import {
   BookOpen,
   Sliders,
   GraduationCap,
+  LayoutDashboard,
 } from 'lucide-react';
 import { Dataset, AppTab } from '../types';
 
@@ -47,11 +48,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                   OmniMetrics
                 </span>
                 <span className="text-[10px] font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-1.5 py-0.5 rounded">
-                  CMP7227 Ed.
+                  v2.4 Public
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 hidden sm:block">
-                Student Well-Being & Lifestyle Analytics Dashboard
+                Student Well-Being & Lifestyle Analytics Platform
               </p>
             </div>
           </div>
@@ -76,20 +77,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Right Action Buttons */}
           <div className="flex items-center gap-2">
-            {dataset && isStudentDataset && (
-              <button
-                onClick={() => setActiveTab('story')}
-                className={`hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition ${
-                  activeTab === 'story'
-                    ? 'bg-amber-600 text-white border-amber-500'
-                    : 'bg-slate-800 hover:bg-slate-700 text-amber-300 border-amber-500/30'
-                }`}
-              >
-                <BookOpen className="w-3.5 h-3.5 text-amber-400" />
-                <span>Story Mode</span>
-              </button>
-            )}
-
             {!dataset && (
               <button
                 onClick={onLoadSample}
@@ -125,6 +112,22 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Navigation Tabs (if dataset loaded) */}
         {dataset && (
           <div className="flex items-center space-x-1 border-t border-slate-800/80 pt-1 pb-1 overflow-x-auto">
+            {/* Primary Executive Dashboard */}
+            <button
+              onClick={() => setActiveTab('powerbi')}
+              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition whitespace-nowrap ${
+                activeTab === 'powerbi'
+                  ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-sm'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <LayoutDashboard className="w-3.5 h-3.5 text-cyan-400" />
+              <span>📊 Executive Dashboard</span>
+              <span className="text-[9px] font-bold px-1.5 py-0.2 bg-cyan-500/20 text-cyan-300 rounded">
+                Live
+              </span>
+            </button>
+
             {/* Story Mode Tab */}
             {isStudentDataset && (
               <button
@@ -136,24 +139,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }`}
               >
                 <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
-                <span>📖 Guided Story Walkthrough</span>
+                <span>📖 Guided Data Story</span>
                 <span className="text-[9px] font-bold px-1.5 py-0.2 bg-indigo-500/30 text-indigo-200 rounded">
-                  Assessment 1
+                  Interactive
                 </span>
               </button>
             )}
-
-            <button
-              onClick={() => setActiveTab('overview')}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition whitespace-nowrap ${
-                activeTab === 'overview'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5" />
-              <span>📊 Overview Dashboard</span>
-            </button>
 
             {/* Risk Simulator Tab */}
             {isStudentDataset && (
@@ -169,6 +160,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span>🎛️ Risk Simulator</span>
               </button>
             )}
+
+            <button
+              onClick={() => setActiveTab('overview')}
+              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition whitespace-nowrap ${
+                activeTab === 'overview'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Dynamic Visual Grid</span>
+            </button>
 
             <button
               onClick={() => setActiveTab('builder')}
@@ -206,17 +209,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span>Data Explorer ({dataset.rowCount.toLocaleString()})</span>
             </button>
 
-            {/* Assessment 1 Guide Tab */}
+            {/* Research Guide Tab */}
             <button
               onClick={() => setActiveTab('guide')}
               className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition whitespace-nowrap ${
                 activeTab === 'guide'
-                  ? 'bg-amber-600 text-white shadow-sm'
-                  : 'text-amber-400/90 hover:text-amber-300 hover:bg-slate-800/60'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-indigo-400 hover:text-indigo-300 hover:bg-slate-800/60'
               }`}
             >
-              <GraduationCap className="w-3.5 h-3.5 text-amber-400" />
-              <span>🎓 Assessment 1 Guide & Script</span>
+              <GraduationCap className="w-3.5 h-3.5 text-indigo-400" />
+              <span>📘 Research Guide & Insights</span>
             </button>
           </div>
         )}

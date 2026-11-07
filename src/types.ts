@@ -70,6 +70,6 @@ export interface ChartConfig {
   description?: string;
 }
 
-export type AppTab = 'story' | 'overview' | 'simulator' | 'builder' | 'statistics' | 'table' | 'guide';
+export type AppTab = 'powerbi' | 'story' | 'simulator' | 'overview' | 'builder' | 'statistics' | 'table' | 'guide';
 
 

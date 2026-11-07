@@ -285,7 +285,7 @@ export const StoryMode: React.FC<StoryModeProps> = ({
       subtitle: 'Analyzing 100,000 university students across 5 academic faculties',
       badge: 'Campus Prevalence: 10.06%',
       badgeColor: 'border-indigo-500/30 text-indigo-400 bg-indigo-500/10',
-      speakerRole: 'Speaker 1 (00:00 - 02:45)',
+      sectionLabel: 'Overview • 100k Students',
       executiveNarration:
         'Across 100,000 surveyed university students, exactly 10,062 students (10.06%) meet the clinical criteria for depression. A widespread assumption in higher education is that depression concentrates predominantly in notoriously grueling disciplines like Medicine or Engineering. Our empirical evidence decisively refutes this: depression rates are virtually identical across all 5 faculties—Arts (10.15%), Business (10.19%), Engineering (10.07%), Medical (9.95%), and Science (9.95%). Student distress is a systemic campus-wide reality, not an isolated departmental anomaly.',
       technicalNarration:
@@ -333,7 +333,7 @@ export const StoryMode: React.FC<StoryModeProps> = ({
       subtitle: 'Academic struggle quadruples depression vulnerability',
       badge: 'Critical Threshold: CGPA < 2.5',
       badgeColor: 'border-rose-500/30 text-rose-400 bg-rose-500/10',
-      speakerRole: 'Speaker 2 (02:45 - 05:00)',
+      sectionLabel: 'Academic Performance • The 2.5 Cliff',
       executiveNarration:
         'When we stratify the student body by cumulative GPA, we observe a stunning non-linear phenomenon: "The Academic Cliff". For students earning above a 2.5 GPA, depression rates remain rock-solid and stable at approximately 5.7% to 5.9%, regardless of whether they hold a 2.6 or a 4.0. However, the moment a student slips below a 2.5 GPA, depression prevalence rockets to 20.97%—more than 3.6 times higher! Academic jeopardy is the single strongest visible signal of acute psychological distress on campus.',
       technicalNarration:
@@ -380,7 +380,7 @@ export const StoryMode: React.FC<StoryModeProps> = ({
       subtitle: 'Severe sleep deficits nearly double depression risk',
       badge: 'Biological Deficit: < 5h Sleep',
       badgeColor: 'border-amber-500/30 text-amber-400 bg-amber-500/10',
-      speakerRole: 'Speaker 2 (05:00 - 07:15)',
+      sectionLabel: 'Sleep Hygiene • < 5h Deficit',
       executiveNarration:
         'University culture often normalizes "pulling all-nighters" and sacrificing sleep as a badge of honor. Our data exposes the severe human cost: students sleeping under 5 hours per night suffer a depression rate of 17.87%, compared to ~9.1% for those getting 6 to 8+ hours. Sleep duration also exhibits an inverse correlation with perceived stress (r = -0.28). Chronic sleep restriction diminishes emotional regulation, compounding academic anxiety into clinical depression.',
       technicalNarration:
@@ -427,7 +427,7 @@ export const StoryMode: React.FC<StoryModeProps> = ({
       subtitle: 'The non-linear collapse of student psychological resilience',
       badge: 'Exponential Spike: Stress >= 8',
       badgeColor: 'border-rose-500/30 text-rose-400 bg-rose-500/10',
-      speakerRole: 'Speaker 3 (07:15 - 09:15)',
+      sectionLabel: 'Perceived Stress • Tipping Point',
       executiveNarration:
         'Stress in academic environments is often treated as linear, but the data reveals an alarming breaking point. Between Stress Level 2 and Level 6, student resilience holds remarkably steady: depression hovers between 8.8% and 10.1%. At Level 7, warning lights flash at 12.2%. Then, at Level 8, resilience collapses: depression prevalence quadruples overnight to 41.8%, climbing to 42.2% at Level 9, and reaching 100% at Level 10. Once perceived stress breaches Level 7, coping mechanisms fail completely.',
       technicalNarration:
@@ -476,7 +476,7 @@ export const StoryMode: React.FC<StoryModeProps> = ({
       subtitle: 'Physical activity buffers stress while social media displaces recovery',
       badge: 'Protective Buffer: r = -0.30',
       badgeColor: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10',
-      speakerRole: 'Speaker 3 (09:15 - 10:30)',
+      sectionLabel: 'Physical Buffer • Exercise Shield',
       executiveNarration:
         'If stress and academic pressure are the catalysts, what is the antidote? The Pearson correlation matrix proves that Physical Activity is the single strongest natural buffer against stress (r = -0.297), followed closely by adequate sleep (r = -0.281). Students with high physical activity report lower baseline stress and lower depression rates (~9.5%). Conversely, excessive social media usage (mean 4.1 hours/day) correlates with late-night screen time that sabotages sleep.',
       technicalNarration:
@@ -514,7 +514,7 @@ export const StoryMode: React.FC<StoryModeProps> = ({
       subtitle: 'How converging risk factors multiply depression probability',
       badge: 'Compound Risk Modeling',
       badgeColor: 'border-purple-500/30 text-purple-400 bg-purple-500/10',
-      speakerRole: 'Speaker 4 (10:30 - 11:30)',
+      sectionLabel: 'Risk Interaction • Compound Threat',
       executiveNarration:
         'Individual risk factors do not exist in isolation—they compound. When low sleep (< 6 hrs) combines with low GPA (< 2.5), depression rate jumps from the 10.06% baseline to 23.98% (6,884 students). When severe stress (>= 7) is added to the mix, depression soars to 37.25%! In contrast, our "Thriving Cohort" (adequate sleep >= 7h, healthy GPA >= 3.0, and >= 60 mins physical activity) experiences a depression rate of only 5.04%—half the campus average. We can predict and prevent student distress before it occurs.',
       technicalNarration:
@@ -578,9 +578,9 @@ export const StoryMode: React.FC<StoryModeProps> = ({
       subtitle: 'Four evidence-based institutional interventions for leadership',
       badge: 'Institutional Roadmap',
       badgeColor: 'border-cyan-500/30 text-cyan-400 bg-cyan-500/10',
-      speakerRole: 'Speaker 4 (11:30 - 12:00)',
+      sectionLabel: 'Action Plan • Policy Roadmap',
       executiveNarration:
-        'To close our assessment presentation, data without action is meaningless. Our 100,000-student findings yield four high-impact institutional policy interventions for university executives: (1) Establish an Early Academic Alert triggered when GPA slips below 2.7; (2) Launch Campus Sleep Hygiene campaigns and restrict unmonitored overnight exam cramming; (3) Prescribe physical activity credits leveraging the -0.30 stress reduction buffer; and (4) Form an Integrated Wellbeing Taskforce linking academic advisors directly with mental health counselors.',
+        'Data without action is meaningless. Our 100,000-student findings yield four high-impact institutional policy interventions for university executives: (1) Establish an Early Academic Alert triggered when GPA slips below 2.7; (2) Launch Campus Sleep Hygiene campaigns and restrict unmonitored overnight exam cramming; (3) Prescribe physical activity credits leveraging the -0.30 stress reduction buffer; and (4) Form an Integrated Wellbeing Taskforce linking academic advisors directly with mental health counselors.',
       technicalNarration:
         'Translating statistical inference into operational intervention. The predictive model suggests that intervening on the compound cohort (1,259 critical students + 6,884 high-risk students) could prevent an estimated 1,500+ cases of clinical depression per academic cycle, improving retention metrics by 4.2% and reducing academic attrition.',
       takeaway:
@@ -637,7 +637,7 @@ export const StoryMode: React.FC<StoryModeProps> = ({
 
   return (
     <div className={`space-y-4 ${isPresenterMode ? 'fixed inset-0 z-50 bg-slate-950 p-6 overflow-y-auto' : ''}`}>
-      {/* Top Presenter Bar: 12-Minute Assessment 1 Recording Studio */}
+      {/* Top Presentation Bar */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl backdrop-blur flex flex-wrap items-center justify-between gap-4">
         {/* Left: Presentation Info */}
         <div className="flex items-center gap-3">
@@ -646,7 +646,7 @@ export const StoryMode: React.FC<StoryModeProps> = ({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold text-white">Assessment 1: Guided Data Story</h2>
+              <h2 className="text-sm font-bold text-white">Guided Data Story & Insights</h2>
               <span className="text-[10px] font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded-full">
                 Act {currentSlide + 1} of {slides.length}
               </span>
@@ -657,12 +657,12 @@ export const StoryMode: React.FC<StoryModeProps> = ({
           </div>
         </div>
 
-        {/* Center: 12-Minute Video Timer */}
+        {/* Center: Presentation Timer */}
         <div className="flex items-center gap-3 bg-slate-950 border border-slate-800 px-3.5 py-1.5 rounded-xl">
           <Clock className={`w-4 h-4 ${timerSeconds < 120 ? 'text-rose-400 animate-pulse' : 'text-indigo-400'}`} />
           <div className="flex flex-col">
             <span className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">
-              12-Min Video Clock
+              Presentation Clock
             </span>
             <span
               className={`font-mono text-base font-bold ${
@@ -687,18 +687,18 @@ export const StoryMode: React.FC<StoryModeProps> = ({
                 setTimerSeconds(12 * 60);
               }}
               className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition"
-              title="Reset Timer to 12:00"
+              title="Reset Timer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
 
-        {/* Right: Speaker Cue & Presenter Mode Toggle */}
+        {/* Right: Section Badge & Focus View Toggle */}
         <div className="flex items-center gap-2">
           <div className="hidden lg:flex items-center gap-1.5 bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-1 rounded-lg text-xs text-indigo-300 font-medium">
             <UserCheck className="w-3.5 h-3.5 text-indigo-400" />
-            <span>{current.speakerRole}</span>
+            <span>{current.sectionLabel}</span>
           </div>
 
           <button
@@ -710,7 +710,7 @@ export const StoryMode: React.FC<StoryModeProps> = ({
             }`}
           >
             {isPresenterMode ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-            <span>{isPresenterMode ? 'Exit Presenter' : 'Presenter View'}</span>
+            <span>{isPresenterMode ? 'Exit Focus' : 'Focus Mode'}</span>
           </button>
         </div>
       </div>
@@ -746,8 +746,8 @@ export const StoryMode: React.FC<StoryModeProps> = ({
                 <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${current.badgeColor}`}>
                   {current.badge}
                 </span>
-                <span className="text-xs text-slate-500 font-mono">
-                  {current.speakerRole}
+                <span className="text-xs text-slate-400 font-mono">
+                  {current.sectionLabel}
                 </span>
               </div>
               <h2 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight leading-snug">
@@ -758,7 +758,7 @@ export const StoryMode: React.FC<StoryModeProps> = ({
               </p>
             </div>
 
-            {/* Audience Perspective Switcher (Directly addresses Assessment 1 Brief: "understood at various levels of an organisation, both technical and non-technical") */}
+            {/* Audience Perspective Switcher */}
             <div className="flex items-center gap-2 p-1 bg-slate-950 rounded-xl border border-slate-800 max-w-sm">
               <button
                 onClick={() => setAudiencePerspective('executive')}
@@ -768,7 +768,7 @@ export const StoryMode: React.FC<StoryModeProps> = ({
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
-                👔 Non-Technical (Leadership)
+                👔 Non-Technical (Clear & Direct)
               </button>
               <button
                 onClick={() => setAudiencePerspective('technical')}
@@ -778,7 +778,7 @@ export const StoryMode: React.FC<StoryModeProps> = ({
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
-                🔬 Technical (Data Science)
+                🔬 In-Depth (Data Science)
               </button>
             </div>
 

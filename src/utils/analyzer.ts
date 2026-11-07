@@ -338,7 +338,7 @@ export function generateInsights(
     type: 'summary',
     title: 'Data Completeness & Quality',
     description: completeness > 99
-      ? `Dataset verified with 100% complete records across ${rows.length.toLocaleString()} rows (meets CMP7227 Assessment 1 criteria).`
+      ? `Dataset verified with 100% complete records across ${rows.length.toLocaleString()} rows.`
       : `${nullCells.toLocaleString()} missing cells detected (${(100 - completeness).toFixed(1)}% missing rate).`,
     metric: `${completeness.toFixed(1)}%`,
     significance: completeness > 95 ? 'low' : 'high',
