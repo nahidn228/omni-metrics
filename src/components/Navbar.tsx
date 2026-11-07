@@ -115,112 +115,62 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Primary Executive Dashboard */}
             <button
               onClick={() => setActiveTab('powerbi')}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition whitespace-nowrap ${
+              className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg transition whitespace-nowrap ${
                 activeTab === 'powerbi'
                   ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-sm'
                   : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
               }`}
             >
               <LayoutDashboard className="w-3.5 h-3.5 text-cyan-400" />
-              <span>📊 Executive Dashboard</span>
+              <span>📊 Dashboard</span>
               <span className="text-[9px] font-bold px-1.5 py-0.2 bg-cyan-500/20 text-cyan-300 rounded">
                 Live
               </span>
             </button>
 
-            {/* Story Mode Tab */}
+            {/* Real AI Explainer Tab */}
+            <button
+              onClick={() => setActiveTab('ai-explainer')}
+              className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg transition whitespace-nowrap ${
+                activeTab === 'ai-explainer'
+                  ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-sm'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+              <span>🤖 Real AI Explainer</span>
+              <span className="text-[9px] font-bold px-1.5 py-0.2 bg-emerald-500/20 text-emerald-300 rounded">
+                Free Real AI
+              </span>
+            </button>
+
+            {/* Data Table Tab */}
+            <button
+              onClick={() => setActiveTab('table')}
+              className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg transition whitespace-nowrap ${
+                activeTab === 'table'
+                  ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-sm'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <Database className="w-3.5 h-3.5 text-emerald-400" />
+              <span>📋 Data Table ({dataset.rowCount.toLocaleString()})</span>
+            </button>
+
+            {/* Optional Guided Data Story Tab */}
             {isStudentDataset && (
               <button
                 onClick={() => setActiveTab('story')}
-                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition whitespace-nowrap ${
+                className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg transition whitespace-nowrap ${
                   activeTab === 'story'
                     ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-sm'
-                    : 'text-indigo-300 hover:text-white hover:bg-slate-800/60'
-                }`}
-              >
-                <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
-                <span>📖 Guided Data Story</span>
-                <span className="text-[9px] font-bold px-1.5 py-0.2 bg-indigo-500/30 text-indigo-200 rounded">
-                  Interactive
-                </span>
-              </button>
-            )}
-
-            {/* Risk Simulator Tab */}
-            {isStudentDataset && (
-              <button
-                onClick={() => setActiveTab('simulator')}
-                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition whitespace-nowrap ${
-                  activeTab === 'simulator'
-                    ? 'bg-indigo-600 text-white shadow-sm'
                     : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
                 }`}
               >
-                <Sliders className="w-3.5 h-3.5 text-cyan-400" />
-                <span>🎛️ Risk Simulator</span>
+                <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
+                <span>📖 Guided Story</span>
               </button>
             )}
-
-            <button
-              onClick={() => setActiveTab('overview')}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition whitespace-nowrap ${
-                activeTab === 'overview'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5" />
-              <span>Dynamic Visual Grid</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('builder')}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition whitespace-nowrap ${
-                activeTab === 'builder'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Chart Studio</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('statistics')}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition whitespace-nowrap ${
-                activeTab === 'statistics'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-              }`}
-            >
-              <BarChart2 className="w-3.5 h-3.5" />
-              <span>Deep Correlations & Stats</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('table')}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition whitespace-nowrap ${
-                activeTab === 'table'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-              }`}
-            >
-              <Database className="w-3.5 h-3.5" />
-              <span>Data Explorer ({dataset.rowCount.toLocaleString()})</span>
-            </button>
-
-            {/* Research Guide Tab */}
-            <button
-              onClick={() => setActiveTab('guide')}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition whitespace-nowrap ${
-                activeTab === 'guide'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-indigo-400 hover:text-indigo-300 hover:bg-slate-800/60'
-              }`}
-            >
-              <GraduationCap className="w-3.5 h-3.5 text-indigo-400" />
-              <span>📘 Research Guide & Insights</span>
-            </button>
           </div>
         )}
       </div>

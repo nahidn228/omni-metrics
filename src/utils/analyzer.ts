@@ -119,64 +119,116 @@ function inferType(columnName: string, values: any[], totalRows: number): DataTy
 }
 
 /**
- * Profile all columns in dataset
+ * Profile all columns in dataset in an optimized single pass
  */
 export function profileColumns(rows: Record<string, any>[], fields: string[]): ColumnProfile[] {
   const totalRows = rows.length;
+  if (totalRows === 0) return [];
+
+  // Determine if we should sample for quantiles and histogram to avoid blocking UI on 100k+ rows
+  const isLarge = totalRows > 10000;
+  const sampleStride = isLarge ? Math.ceil(totalRows / 5000) : 1;
 
   return fields.map((colName) => {
-    const rawValues = rows.map(r => r[colName]);
-    const nullCount = rawValues.filter(v => v === null || v === undefined || v === '').length;
-    const validValues = rawValues.filter(v => v !== null && v !== undefined && v !== '');
-    const uniqueValues = Array.from(new Set(validValues));
-    const uniqueCount = uniqueValues.length;
-    const sampleValues = validValues.slice(0, 5);
+    let nullCount = 0;
+    let numericCount = 0;
+    let booleanCount = 0;
+    let min = Infinity;
+    let max = -Infinity;
+    let sum = 0;
+    let validCount = 0;
 
-    const type = inferType(colName, validValues, totalRows);
+    const sampleValues: any[] = [];
+    const sampleNumbers: number[] = [];
+    const freqMap: Record<string, number> = {};
+    let uniqueSetSize = 0;
+
+    for (let i = 0; i < totalRows; i++) {
+      const val = rows[i][colName];
+      if (val === null || val === undefined || val === '') {
+        nullCount++;
+        continue;
+      }
+
+      validCount++;
+      if (sampleValues.length < 5) {
+        sampleValues.push(val);
+      }
+
+      const t = typeof val;
+      if (t === 'number' && !isNaN(val)) {
+        numericCount++;
+        sum += val;
+        if (val < min) min = val;
+        if (val > max) max = val;
+
+        if (i % sampleStride === 0 && sampleNumbers.length < 5000) {
+          sampleNumbers.push(val);
+        }
+      } else if (t === 'boolean' || val === 'true' || val === 'false' || val === 'yes' || val === 'no') {
+        booleanCount++;
+      }
+
+      // Collect frequency map for categoricals (cap at 250 keys)
+      if (uniqueSetSize < 250) {
+        const s = String(val);
+        if (!freqMap[s]) {
+          freqMap[s] = 1;
+          uniqueSetSize++;
+        } else {
+          freqMap[s]++;
+        }
+      }
+    }
+
+    // Infer type
+    const lowerName = colName.toLowerCase();
+    let type: DataType = 'categorical';
+
+    if (
+      (lowerName.endsWith('_id') || lowerName.endsWith('id') || lowerName === 'id') &&
+      uniqueSetSize > 50
+    ) {
+      type = 'id';
+    } else if (numericCount / (validCount || 1) > 0.8) {
+      type = 'numeric';
+    } else if (booleanCount / (validCount || 1) > 0.8) {
+      type = 'boolean';
+    }
 
     const profile: ColumnProfile = {
       name: colName,
       type,
       totalCount: totalRows,
       nullCount,
-      uniqueCount,
+      uniqueCount: uniqueSetSize,
       sampleValues,
     };
 
-    if (type === 'numeric') {
-      const numbers = validValues.filter(v => typeof v === 'number' && !isNaN(v)) as number[];
-      if (numbers.length > 0) {
-        const sorted = [...numbers].sort((a, b) => a - b);
-        const min = sorted[0];
-        const max = sorted[sorted.length - 1];
-        const sum = numbers.reduce((acc, val) => acc + val, 0);
-        const mean = sum / numbers.length;
-        const stdDev = calculateStdDev(numbers, mean);
-        const { median, q1, q3 } = calculateQuantiles(sorted);
-        const histogram = createHistogram(numbers, min, max, 10);
+    if (type === 'numeric' && validCount > 0) {
+      const mean = sum / (numericCount || 1);
+      const numbersToSort = sampleNumbers.length > 0 ? sampleNumbers : [min, max];
+      numbersToSort.sort((a, b) => a - b);
 
-        profile.min = min;
-        profile.max = max;
-        profile.mean = mean;
-        profile.sum = sum;
-        profile.stdDev = stdDev;
-        profile.median = median;
-        profile.q1 = q1;
-        profile.q3 = q3;
-        profile.histogram = histogram;
-      }
+      const stdDev = calculateStdDev(numbersToSort, mean);
+      const { median, q1, q3 } = calculateQuantiles(numbersToSort);
+      const histogram = createHistogram(numbersToSort, min === Infinity ? 0 : min, max === -Infinity ? 0 : max, 10);
+
+      profile.min = min === Infinity ? 0 : min;
+      profile.max = max === -Infinity ? 0 : max;
+      profile.mean = Number(mean.toFixed(2));
+      profile.sum = sum;
+      profile.stdDev = Number(stdDev.toFixed(2));
+      profile.median = Number(median.toFixed(2));
+      profile.q1 = Number(q1.toFixed(2));
+      profile.q3 = Number(q3.toFixed(2));
+      profile.histogram = histogram;
     } else if (type === 'categorical' || type === 'boolean') {
-      const freqMap: Record<string, number> = {};
-      for (const val of validValues) {
-        const str = String(val);
-        freqMap[str] = (freqMap[str] || 0) + 1;
-      }
-
       const topValues = Object.entries(freqMap)
         .map(([value, count]) => ({
           value,
           count,
-          percentage: (count / validValues.length) * 100,
+          percentage: (count / (validCount || 1)) * 100,
         }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 15);
@@ -195,8 +247,9 @@ export function calculateCorrelation(rows: Record<string, any>[], colA: string, 
   let sumA = 0;
   let sumB = 0;
   let count = 0;
+  const n = rows.length;
 
-  for (let i = 0; i < rows.length; i++) {
+  for (let i = 0; i < n; i++) {
     const a = rows[i][colA];
     const b = rows[i][colB];
     if (typeof a === 'number' && !isNaN(a) && typeof b === 'number' && !isNaN(b)) {
@@ -214,7 +267,7 @@ export function calculateCorrelation(rows: Record<string, any>[], colA: string, 
   let denA = 0;
   let denB = 0;
 
-  for (let i = 0; i < rows.length; i++) {
+  for (let i = 0; i < n; i++) {
     const a = rows[i][colA];
     const b = rows[i][colB];
     if (typeof a === 'number' && !isNaN(a) && typeof b === 'number' && !isNaN(b)) {
@@ -232,7 +285,7 @@ export function calculateCorrelation(rows: Record<string, any>[], colA: string, 
 }
 
 /**
- * Compute pairwise correlations across all numeric columns
+ * Compute pairwise correlations across all numeric columns (sampled if large for instant speed)
  */
 export function computeCorrelationMatrix(
   rows: Record<string, any>[],
@@ -241,9 +294,19 @@ export function computeCorrelationMatrix(
   const result: CorrelationItem[] = [];
   const colNames = numericColumns.map(c => c.name);
 
+  // If large dataset, sample 5,000 rows for lightning-fast correlation computation
+  let sampleRows = rows;
+  if (rows.length > 5000) {
+    const stride = Math.ceil(rows.length / 5000);
+    sampleRows = [];
+    for (let i = 0; i < rows.length; i += stride) {
+      sampleRows.push(rows[i]);
+    }
+  }
+
   for (let i = 0; i < colNames.length; i++) {
     for (let j = i + 1; j < colNames.length; j++) {
-      const corr = calculateCorrelation(rows, colNames[i], colNames[j]);
+      const corr = calculateCorrelation(sampleRows, colNames[i], colNames[j]);
       result.push({
         colA: colNames[i],
         colB: colNames[j],

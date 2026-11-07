@@ -15,52 +15,71 @@ export interface ParseOptions {
 }
 
 /**
- * Coerces string values into proper primitives (number, boolean, date, null)
+ * Fast in-place normalization of rows without allocating millions of objects/regexes
  */
-export function cleanAndCoerceRow(row: Record<string, any>): Record<string, any> {
-  const cleaned: Record<string, any> = {};
+export function fastNormalizeRows(
+  rows: Record<string, any>[],
+  fields: string[]
+): Record<string, any>[] {
+  const cleanFields = fields.map((f) => f.trim());
+  const needsRename = cleanFields.some((cf, i) => cf !== fields[i]);
 
-  for (const [key, rawVal] of Object.entries(row)) {
-    if (key === undefined || key === null || key.trim() === '') continue;
-    const cleanKey = key.trim();
+  const n = rows.length;
+  const numFields = cleanFields.length;
 
-    if (rawVal === null || rawVal === undefined || rawVal === '' || rawVal === 'NA' || rawVal === 'N/A' || rawVal === 'null') {
-      cleaned[cleanKey] = null;
-      continue;
-    }
+  for (let i = 0; i < n; i++) {
+    const row = rows[i];
+    if (!row) continue;
 
-    if (typeof rawVal === 'number' || typeof rawVal === 'boolean') {
-      cleaned[cleanKey] = rawVal;
-      continue;
-    }
-
-    const strVal = String(rawVal).trim();
-
-    // Check boolean
-    const lower = strVal.toLowerCase();
-    if (lower === 'true') {
-      cleaned[cleanKey] = true;
-      continue;
-    }
-    if (lower === 'false') {
-      cleaned[cleanKey] = false;
-      continue;
-    }
-
-    // Check pure number
-    if (/^-?\d+(\.\d+)?$/.test(strVal)) {
-      const num = Number(strVal);
-      if (!isNaN(num)) {
-        cleaned[cleanKey] = num;
-        continue;
+    if (needsRename) {
+      for (let j = 0; j < numFields; j++) {
+        const orig = fields[j];
+        const cln = cleanFields[j];
+        if (orig !== cln && row[orig] !== undefined) {
+          row[cln] = row[orig];
+          delete row[orig];
+        }
       }
     }
 
-    // Standard string
-    cleaned[cleanKey] = strVal;
+    for (let j = 0; j < numFields; j++) {
+      const key = cleanFields[j];
+      const val = row[key];
+
+      if (val === null || val === undefined || val === '' || val === 'NA' || val === 'N/A' || val === 'null') {
+        row[key] = null;
+        continue;
+      }
+
+      if (typeof val === 'number' || typeof val === 'boolean') {
+        continue;
+      }
+
+      if (typeof val === 'string') {
+        const trimmed = val.trim();
+        const lower = trimmed.toLowerCase();
+        if (lower === 'true' || lower === 'yes') {
+          row[key] = true;
+        } else if (lower === 'false' || lower === 'no') {
+          row[key] = false;
+        } else {
+          // If purely numeric string
+          const num = Number(trimmed);
+          if (!isNaN(num) && trimmed !== '') {
+            row[key] = num;
+          } else {
+            row[key] = trimmed;
+          }
+        }
+      }
+    }
   }
 
-  return cleaned;
+  return rows;
+}
+
+export function cleanAndCoerceRow(row: Record<string, any>): Record<string, any> {
+  return row;
 }
 
 /**
@@ -88,9 +107,9 @@ export function parseCSVFile(
       },
       complete: (results) => {
         if (onProgress) onProgress(100);
-        const rows = results.data.map(cleanAndCoerceRow);
         const fields = results.meta.fields?.map(f => f.trim()).filter(Boolean) || 
-          (rows.length > 0 ? Object.keys(rows[0]) : []);
+          (results.data.length > 0 ? Object.keys(results.data[0]) : []);
+        const rows = fastNormalizeRows(results.data, fields);
 
         resolve({
           fileName: file.name,
@@ -128,9 +147,9 @@ export async function parseCSVUrl(
       dynamicTyping: true,
       complete: (results) => {
         if (onProgress) onProgress(100);
-        const rows = results.data.map(cleanAndCoerceRow);
         const fields = results.meta.fields?.map(f => f.trim()).filter(Boolean) || 
-          (rows.length > 0 ? Object.keys(rows[0]) : []);
+          (results.data.length > 0 ? Object.keys(results.data[0]) : []);
+        const rows = fastNormalizeRows(results.data, fields);
 
         resolve({
           fileName,

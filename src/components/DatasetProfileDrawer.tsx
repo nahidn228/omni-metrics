@@ -17,14 +17,20 @@ interface DatasetProfileDrawerProps {
   dataset: Dataset;
   onFilterByCategory?: (colName: string, value: string) => void;
   activeFilters?: Record<string, string[]>;
+  isExpanded?: boolean;
+  onToggle?: () => void;
 }
 
 export const DatasetProfileDrawer: React.FC<DatasetProfileDrawerProps> = ({
   dataset,
   onFilterByCategory,
   activeFilters = {},
+  isExpanded: controlledExpanded,
+  onToggle: controlledOnToggle,
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [internalExpanded, setInternalExpanded] = useState(false);
+  const isExpanded = controlledExpanded !== undefined ? controlledExpanded : internalExpanded;
+  const toggleExpanded = controlledOnToggle || (() => setInternalExpanded(!internalExpanded));
 
   // Group columns by role
   const categoricals = dataset.columns.filter(
@@ -85,7 +91,7 @@ export const DatasetProfileDrawer: React.FC<DatasetProfileDrawerProps> = ({
 
           {/* Toggle Expand Details */}
           <button
-            onClick={() => setIsExpanded(!isExpanded)}
+            onClick={toggleExpanded}
             className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-xl text-xs font-semibold transition"
           >
             <Columns3 className="w-3.5 h-3.5 text-indigo-400" />

@@ -13,6 +13,7 @@ import { FileUploadModal } from './components/FileUploadModal';
 import { StoryMode } from './components/StoryMode';
 import { RiskSimulator } from './components/RiskSimulator';
 import { ResearchGuideView } from './components/ResearchGuideView';
+import { RealAiExplainerView } from './components/RealAiExplainerView';
 import { Dataset, FilterState, ChartConfig, AppTab } from './types';
 import { analyzeDataset, generateRecommendedCharts } from './utils/analyzer';
 import { applyFilters } from './utils/dataTransforms';
@@ -239,12 +240,17 @@ export function App() {
               activeFilters={filters.categoricals}
             />
 
-            {/* Tab 1: Primary Power BI Replica Dashboard */}
-            {activeTab === 'powerbi' && isStudentDataset && (
-              <PowerBiDashboard dataset={dataset} />
+            {/* Tab 1: Primary Power BI Dashboard */}
+            {activeTab === 'powerbi' && (
+              <PowerBiDashboard dataset={dataset} onOpenTable={() => setActiveTab('table')} />
             )}
 
-            {/* Tab 2: Story Mode Walkthrough */}
+            {/* Tab 2: Real AI Explainer & Assistant */}
+            {activeTab === 'ai-explainer' && (
+              <RealAiExplainerView dataset={dataset} />
+            )}
+
+            {/* Tab 3: Story Mode Walkthrough */}
             {activeTab === 'story' && isStudentDataset && (
               <StoryMode
                 dataset={dataset}

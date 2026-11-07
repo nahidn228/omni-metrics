@@ -256,3 +256,4 @@ export const ResearchGuideView: React.FC<ResearchGuideViewProps> = ({ onNavigate
     </div>
   );
 };
+

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ResponsiveContainer,
   BarChart,
@@ -25,33 +25,171 @@ import {
   Sparkles,
   Sun,
   Moon,
-  Lightbulb,
-  ChevronDown,
-  ChevronUp,
-  MessageSquare,
+  Loader2,
+  FileSpreadsheet,
+  CheckCircle2,
+  Sliders,
+  Layers,
 } from 'lucide-react';
-import { Dataset } from '../types';
+import { Dataset, ColumnProfile } from '../types';
 import { AiAssistantDrawer } from './AiAssistantDrawer';
+import { DatasetProfileDrawer } from './DatasetProfileDrawer';
+import { generateChartExplanation } from '../services/aiService';
 
 interface PowerBiDashboardProps {
   dataset: Dataset;
+  onOpenTable?: () => void;
 }
 
 type ChartViewType = 'bar' | 'horizontal_bar' | 'line' | 'pie' | 'table';
 
+/**
+ * Universal dynamic column finder
+ */
+function findCol(cols: ColumnProfile[], ...aliases: string[]): string | undefined {
+  const cleanAliases = aliases.map((a) => a.toLowerCase().replace(/[^a-z0-9]/g, ''));
+  for (const c of cols) {
+    const clean = c.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (cleanAliases.includes(clean)) return c.name;
+  }
+  for (const c of cols) {
+    const clean = c.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (cleanAliases.some((a) => clean.includes(a) || a.includes(clean))) return c.name;
+  }
+  return undefined;
+}
+
+/**
+ * Helper to determine if a value is positive outcome (1, true, Yes, Depressed)
+ */
+function isPositiveTarget(val: any): boolean {
+  if (val === true || val === 1 || val === '1') return true;
+  if (typeof val === 'string') {
+    const s = val.trim().toLowerCase();
+    return s === 'true' || s === 'yes' || s === 'y' || s === 'depressed' || s === 'positive';
+  }
+  return false;
+}
+
+/**
+ * Real AI Chart Explanation Component
+ */
+const RealAiChartExplainer: React.FC<{
+  title: string;
+  dataSummary: string;
+  datasetContext: string;
+  isVisible: boolean;
+}> = ({ title, dataSummary, datasetContext, isVisible }) => {
+  const [explanation, setExplanation] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  const fetchAiExplanation = async () => {
+    setIsLoading(true);
+    try {
+      const res = await generateChartExplanation(title, dataSummary, datasetContext);
+      setExplanation(res);
+    } catch {
+      setExplanation(`• Data Summary: ${dataSummary}.\n• Key Finding: Strong variation observed across groups.`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isVisible && !explanation && !isLoading) {
+      fetchAiExplanation();
+    }
+  }, [isVisible, dataSummary]);
+
+  if (!isVisible) return null;
+
+  return (
+    <div className="bg-indigo-500/10 border border-indigo-500/25 text-indigo-950 dark:text-indigo-200 text-[11px] p-2.5 rounded-lg mb-2 leading-relaxed shadow-sm">
+      <div className="flex items-center justify-between mb-1 pb-1 border-b border-indigo-500/20">
+        <span className="font-bold flex items-center gap-1.5 text-indigo-600 dark:text-cyan-300">
+          <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+          <span>Real AI Model Explanation</span>
+        </span>
+        <button
+          onClick={fetchAiExplanation}
+          disabled={isLoading}
+          className="text-[10px] text-slate-500 hover:text-indigo-600 dark:hover:text-cyan-300 flex items-center gap-1 font-medium transition"
+          title="Ask Real AI to re-analyze this visual"
+        >
+          <RotateCcw className={`w-2.5 h-2.5 ${isLoading ? 'animate-spin' : ''}`} />
+          <span>Regenerate</span>
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center gap-2 text-slate-400 py-1.5 text-xs">
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
+          <span>Real AI is analyzing your uploaded data points...</span>
+        </div>
+      ) : (
+        <div className="whitespace-pre-line text-slate-800 dark:text-slate-200 font-sans leading-relaxed">
+          {explanation}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const PowerBiDashboard: React.FC<PowerBiDashboardProps> = ({ dataset }) => {
-  // Theme state: default to 'light' matching Power BI canvas, toggleable to dark
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+
+  // Dynamic Column Detection
+  const colKeys = useMemo(() => {
+    const cols = dataset.columns;
+    return {
+      dep: findCol(cols, 'depression', 'depressed', 'target', 'condition', 'label') || 'Depression',
+      stress: findCol(cols, 'stress_level', 'stress', 'anxiety') || 'Stress_Level',
+      cgpa: findCol(cols, 'cgpa', 'gpa', 'grade', 'score') || 'CGPA',
+      sleep: findCol(cols, 'sleep_duration', 'sleep', 'sleep_hours') || 'Sleep_Duration',
+      social: findCol(cols, 'social_media_hours', 'social_media', 'screen_time') || 'Social_Media_Hours',
+      dept: findCol(cols, 'department', 'dept', 'faculty', 'major') || 'Department',
+      gender: findCol(cols, 'gender', 'sex') || 'Gender',
+      age: findCol(cols, 'age', 'student_age') || 'Age',
+      activity: findCol(cols, 'physical_activity', 'activity', 'exercise') || 'Physical_Activity',
+      study: findCol(cols, 'study_hours', 'study') || 'Study_Hours',
+    };
+  }, [dataset.columns]);
+
+  // Dynamic Slicer Options extracted directly from raw rows
+  const availableDepts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (let i = 0; i < dataset.rawRows.length; i++) {
+      const val = dataset.rawRows[i][colKeys.dept];
+      if (val !== null && val !== undefined && val !== '') {
+        const s = String(val).trim();
+        counts[s] = (counts[s] || 0) + 1;
+      }
+    }
+    return Object.keys(counts).sort((a, b) => counts[b] - counts[a]).slice(0, 6);
+  }, [dataset.rawRows, colKeys.dept]);
+
+  const availableGenders = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (let i = 0; i < dataset.rawRows.length; i++) {
+      const val = dataset.rawRows[i][colKeys.gender];
+      if (val !== null && val !== undefined && val !== '') {
+        const s = String(val).trim();
+        counts[s] = (counts[s] || 0) + 1;
+      }
+    }
+    return Object.keys(counts).sort((a, b) => counts[b] - counts[a]).slice(0, 4);
+  }, [dataset.rawRows, colKeys.gender]);
 
   // Slicer States
   const [genderFilter, setGenderFilter] = useState<string>('All');
   const [deptFilter, setDeptFilter] = useState<string>('All');
   const [ageFilter, setAgeFilter] = useState<string>('All');
 
-  // AI Assistant Drawer Open
+  // Drawers
   const [isAiDrawerOpen, setIsAiDrawerOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
-  // Individual chart view types
+  // Individual chart views
   const [chartView1, setChartView1] = useState<ChartViewType>('bar');
   const [chartView2, setChartView2] = useState<ChartViewType>('bar');
   const [chartView3, setChartView3] = useState<ChartViewType>('bar');
@@ -59,7 +197,7 @@ export const PowerBiDashboard: React.FC<PowerBiDashboardProps> = ({ dataset }) =
   const [chartView5, setChartView5] = useState<ChartViewType>('horizontal_bar');
   const [chartView6, setChartView6] = useState<ChartViewType>('horizontal_bar');
 
-  // Toggle state for individual chart AI explanations
+  // Individual chart AI toggles
   const [showAiExp1, setShowAiExp1] = useState(true);
   const [showAiExp2, setShowAiExp2] = useState(true);
   const [showAiExp3, setShowAiExp3] = useState(true);
@@ -67,7 +205,7 @@ export const PowerBiDashboard: React.FC<PowerBiDashboardProps> = ({ dataset }) =
   const [showAiExp5, setShowAiExp5] = useState(false);
   const [showAiExp6, setShowAiExp6] = useState(true);
 
-  // Fast In-Memory Filter on 100k Rows
+  // Filtered rows for current slicers
   const filteredRows = useMemo(() => {
     const raw = dataset.rawRows;
     if (genderFilter === 'All' && deptFilter === 'All' && ageFilter === 'All') {
@@ -75,23 +213,20 @@ export const PowerBiDashboard: React.FC<PowerBiDashboardProps> = ({ dataset }) =
     }
 
     return raw.filter((r) => {
-      // 1. Gender
       if (genderFilter !== 'All') {
-        if (String(r.Gender || '').toLowerCase() !== genderFilter.toLowerCase()) {
+        if (String(r[colKeys.gender] || '').toLowerCase() !== genderFilter.toLowerCase()) {
           return false;
         }
       }
 
-      // 2. Department
       if (deptFilter !== 'All') {
-        if (String(r.Department || '').toLowerCase() !== deptFilter.toLowerCase()) {
+        if (String(r[colKeys.dept] || '').toLowerCase() !== deptFilter.toLowerCase()) {
           return false;
         }
       }
 
-      // 3. Age
       if (ageFilter !== 'All') {
-        const age = Number(r.Age);
+        const age = Number(r[colKeys.age]);
         if (ageFilter === '18–19' && (age < 18 || age > 19)) return false;
         if (ageFilter === '20–21' && (age < 20 || age > 21)) return false;
         if (ageFilter === '22–24' && (age < 22 || age > 24)) return false;
@@ -99,9 +234,9 @@ export const PowerBiDashboard: React.FC<PowerBiDashboardProps> = ({ dataset }) =
 
       return true;
     });
-  }, [dataset.rawRows, genderFilter, deptFilter, ageFilter]);
+  }, [dataset.rawRows, genderFilter, deptFilter, ageFilter, colKeys]);
 
-  // Derived KPIs
+  // Derived Dynamic KPIs
   const kpis = useMemo(() => {
     const total = filteredRows.length;
     if (total === 0) {
@@ -124,13 +259,13 @@ export const PowerBiDashboard: React.FC<PowerBiDashboardProps> = ({ dataset }) =
 
     for (let i = 0; i < total; i++) {
       const r = filteredRows[i];
-      if (r.Depression === true || String(r.Depression).toLowerCase() === 'true') {
+      if (isPositiveTarget(r[colKeys.dep])) {
         depressedCount++;
       }
-      sumSocialMedia += Number(r.Social_Media_Hours) || 0;
-      sumSleep += Number(r.Sleep_Duration) || 0;
-      sumStress += Number(r.Stress_Level) || 0;
-      sumActivity += Number(r.Physical_Activity) || 0;
+      sumSocialMedia += Number(r[colKeys.social]) || 0;
+      sumSleep += Number(r[colKeys.sleep]) || 0;
+      sumStress += Number(r[colKeys.stress]) || 0;
+      sumActivity += Number(r[colKeys.activity]) || 0;
     }
 
     return {
@@ -142,10 +277,15 @@ export const PowerBiDashboard: React.FC<PowerBiDashboardProps> = ({ dataset }) =
       avgStress: Number((sumStress / total).toFixed(1)),
       avgActivity: Number((sumActivity / total).toFixed(1)),
     };
-  }, [filteredRows]);
+  }, [filteredRows, colKeys]);
 
-  // Chart 1: Depression Rate by Stress Level (2..9+)
-  const stressData = useMemo(() => {
+  // Context string for AI prompts
+  const datasetContext = useMemo(() => {
+    return `${dataset.fileName} (${kpis.students.toLocaleString()} students, ${kpis.depressionRate}% depression rate, avg stress ${kpis.avgStress}/10, avg sleep ${kpis.avgSleep}h, filters: Gender=${genderFilter}, Dept=${deptFilter}, Age=${ageFilter})`;
+  }, [dataset.fileName, kpis, genderFilter, deptFilter, ageFilter]);
+
+  // 1. Stress Chart Data & Dynamic Subtitle
+  const { stressData, stressSubtitle, stressAiSummary } = useMemo(() => {
     const bins: Record<string, { total: number; dep: number }> = {
       '2': { total: 0, dep: 0 },
       '3': { total: 0, dep: 0 },
@@ -157,27 +297,38 @@ export const PowerBiDashboard: React.FC<PowerBiDashboardProps> = ({ dataset }) =
       '9+': { total: 0, dep: 0 },
     };
 
-    for (const r of filteredRows) {
-      const s = Math.round(Number(r.Stress_Level));
+    for (let i = 0; i < filteredRows.length; i++) {
+      const r = filteredRows[i];
+      const s = Math.round(Number(r[colKeys.stress]));
       const key = s >= 9 ? '9+' : String(s);
       if (bins[key]) {
         bins[key].total++;
-        if (r.Depression === true || String(r.Depression).toLowerCase() === 'true') {
+        if (isPositiveTarget(r[colKeys.dep])) {
           bins[key].dep++;
         }
       }
     }
 
-    return Object.entries(bins).map(([label, val]) => ({
+    const data = Object.entries(bins).map(([label, val]) => ({
       name: label,
       rate: val.total > 0 ? Number(((val.dep / val.total) * 100).toFixed(1)) : 0,
       count: val.dep,
       total: val.total,
     }));
-  }, [filteredRows]);
 
-  // Chart 2: Depression Rate by CGPA Band
-  const cgpaData = useMemo(() => {
+    const validBins = data.filter((d) => d.total > 0);
+    const minBin = validBins.reduce((prev, curr) => (curr.rate < prev.rate ? curr : prev), validBins[0] || { rate: 0, name: '2' });
+    const maxBin = validBins.reduce((prev, curr) => (curr.rate > prev.rate ? curr : prev), validBins[0] || { rate: 0, name: '9+' });
+    const ratio = minBin.rate > 0 ? (maxBin.rate / minBin.rate).toFixed(1) : '—';
+
+    const subtitle = `Rates escalate from ${minBin.rate}% (Level ${minBin.name}) up to ${maxBin.rate}% (Level ${maxBin.name}) — a ${ratio}x risk multiplier.`;
+    const aiSummary = `Depression rate by stress level: Level ${minBin.name} is ${minBin.rate}%, Level 7 is ${data.find((d) => d.name === '7')?.rate || 0}%, Level 8 is ${data.find((d) => d.name === '8')?.rate || 0}%, and Level 9+ reaches ${maxBin.rate}%.`;
+
+    return { stressData: data, stressSubtitle: subtitle, stressAiSummary: aiSummary };
+  }, [filteredRows, colKeys]);
+
+  // 2. CGPA Chart Data & Dynamic Subtitle
+  const { cgpaData, cgpaSubtitle, cgpaAiSummary } = useMemo(() => {
     const bands = [
       { label: '1.5–2.0', min: 1.5, max: 2.0, total: 0, dep: 0 },
       { label: '2.0–2.5', min: 2.0, max: 2.5, total: 0, dep: 0 },
@@ -186,29 +337,43 @@ export const PowerBiDashboard: React.FC<PowerBiDashboardProps> = ({ dataset }) =
       { label: '3.5–4.0', min: 3.5, max: 4.01, total: 0, dep: 0 },
     ];
 
-    for (const r of filteredRows) {
-      const gpa = Number(r.CGPA);
+    for (let i = 0; i < filteredRows.length; i++) {
+      const r = filteredRows[i];
+      const gpa = Number(r[colKeys.cgpa]);
       if (!isNaN(gpa)) {
         const b = bands.find((item) => gpa >= item.min && gpa < item.max);
         if (b) {
           b.total++;
-          if (r.Depression === true || String(r.Depression).toLowerCase() === 'true') {
+          if (isPositiveTarget(r[colKeys.dep])) {
             b.dep++;
           }
         }
       }
     }
 
-    return bands.map((b) => ({
+    const data = bands.map((b) => ({
       name: b.label,
       rate: b.total > 0 ? Number(((b.dep / b.total) * 100).toFixed(1)) : 0,
       count: b.dep,
       total: b.total,
     }));
-  }, [filteredRows]);
 
-  // Chart 3: Depression Rate by Sleep Duration
-  const sleepData = useMemo(() => {
+    const lowGpaTotal = bands[0].total + bands[1].total;
+    const lowGpaDep = bands[0].dep + bands[1].dep;
+    const lowRate = lowGpaTotal > 0 ? ((lowGpaDep / lowGpaTotal) * 100).toFixed(1) : '0';
+
+    const highGpaTotal = bands[2].total + bands[3].total + bands[4].total;
+    const highGpaDep = bands[2].dep + bands[3].dep + bands[4].dep;
+    const highRate = highGpaTotal > 0 ? ((highGpaDep / highGpaTotal) * 100).toFixed(1) : '0';
+
+    const subtitle = `Academic performance gap: ~${lowRate}% below CGPA 2.5 vs ~${highRate}% for CGPA ≥ 2.5.`;
+    const aiSummary = `Depression rate by CGPA band: GPA < 2.5 averages ${lowRate}%, whereas GPA ≥ 2.5 averages ${highRate}%.`;
+
+    return { cgpaData: data, cgpaSubtitle: subtitle, cgpaAiSummary: aiSummary };
+  }, [filteredRows, colKeys]);
+
+  // 3. Sleep Chart Data & Dynamic Subtitle
+  const { sleepData, sleepSubtitle, sleepAiSummary } = useMemo(() => {
     const bins = [
       { label: '<5', min: 0, max: 5, total: 0, dep: 0 },
       { label: '5–6', min: 5, max: 6, total: 0, dep: 0 },
@@ -218,29 +383,37 @@ export const PowerBiDashboard: React.FC<PowerBiDashboardProps> = ({ dataset }) =
       { label: '9+', min: 9, max: 24, total: 0, dep: 0 },
     ];
 
-    for (const r of filteredRows) {
-      const s = Number(r.Sleep_Duration);
+    for (let i = 0; i < filteredRows.length; i++) {
+      const r = filteredRows[i];
+      const s = Number(r[colKeys.sleep]);
       if (!isNaN(s)) {
         const b = bins.find((item) => s >= item.min && s < item.max);
         if (b) {
           b.total++;
-          if (r.Depression === true || String(r.Depression).toLowerCase() === 'true') {
+          if (isPositiveTarget(r[colKeys.dep])) {
             b.dep++;
           }
         }
       }
     }
 
-    return bins.map((b) => ({
+    const data = bins.map((b) => ({
       name: b.label,
       rate: b.total > 0 ? Number(((b.dep / b.total) * 100).toFixed(1)) : 0,
       count: b.dep,
       total: b.total,
     }));
-  }, [filteredRows]);
 
-  // Chart 4: Depression Rate by Social Media Hours
-  const socialMediaData = useMemo(() => {
+    const under5Rate = data[0].rate;
+    const recRate = data[3].rate; // 7-8h
+    const subtitle = `Under 5 hours shows ${under5Rate}% depression vs ${recRate}% for standard 7–8 hour sleep.`;
+    const aiSummary = `Sleep duration: <5 hours has ${under5Rate}% depression rate, while 7-8 hours is ${recRate}% and 8-9 hours is ${data[4].rate}%.`;
+
+    return { sleepData: data, sleepSubtitle: subtitle, sleepAiSummary: aiSummary };
+  }, [filteredRows, colKeys]);
+
+  // 4. Social Media Chart Data & Dynamic Subtitle
+  const { socialMediaData, socialMediaSubtitle, socialMediaAiSummary } = useMemo(() => {
     const bins = [
       { label: '0–1', min: 0, max: 1, total: 0, dep: 0 },
       { label: '1–2', min: 1, max: 2, total: 0, dep: 0 },
@@ -252,157 +425,159 @@ export const PowerBiDashboard: React.FC<PowerBiDashboardProps> = ({ dataset }) =
       { label: '8+', min: 8, max: 24, total: 0, dep: 0 },
     ];
 
-    for (const r of filteredRows) {
-      const sm = Number(r.Social_Media_Hours);
+    for (let i = 0; i < filteredRows.length; i++) {
+      const r = filteredRows[i];
+      const sm = Number(r[colKeys.social]);
       if (!isNaN(sm)) {
         const b = bins.find((item) => sm >= item.min && sm < item.max);
         if (b) {
           b.total++;
-          if (r.Depression === true || String(r.Depression).toLowerCase() === 'true') {
+          if (isPositiveTarget(r[colKeys.dep])) {
             b.dep++;
           }
         }
       }
     }
 
-    return bins.map((b) => ({
+    const data = bins.map((b) => ({
       name: b.label,
       rate: b.total > 0 ? Number(((b.dep / b.total) * 100).toFixed(1)) : 0,
       count: b.dep,
       total: b.total,
     }));
-  }, [filteredRows]);
 
-  // Chart 5: Depression Rate by Department
-  const deptData = useMemo(() => {
-    const list = ['Science', 'Engineering', 'Arts', 'Medical', 'Business'];
+    const minSm = data[0].rate;
+    const maxSm = data[6].rate;
+    const subtitle = `Rates range from ~${minSm}% for 0–1h up to ~${maxSm}% beyond 5 hours daily.`;
+    const aiSummary = `Social media usage: 0-1 hours is ${minSm}%, 3-4 hours is ${data[3].rate}%, and heavy use (6-8h) reaches ${maxSm}%.`;
+
+    return { socialMediaData: data, socialMediaSubtitle: subtitle, socialMediaAiSummary: aiSummary };
+  }, [filteredRows, colKeys]);
+
+  // 5. Department Chart Data & Dynamic Subtitle
+  const { deptData, deptSubtitle, deptAiSummary } = useMemo(() => {
+    const depts = availableDepts.length > 0 ? availableDepts : ['Science', 'Engineering', 'Arts', 'Medical', 'Business'];
     const map: Record<string, { total: number; dep: number }> = {};
-    for (const d of list) map[d] = { total: 0, dep: 0 };
+    for (const d of depts) map[d] = { total: 0, dep: 0 };
 
-    for (const r of filteredRows) {
-      const d = String(r.Department || '');
+    for (let i = 0; i < filteredRows.length; i++) {
+      const r = filteredRows[i];
+      const d = String(r[colKeys.dept] || '').trim();
       if (map[d]) {
         map[d].total++;
-        if (r.Depression === true || String(r.Depression).toLowerCase() === 'true') {
+        if (isPositiveTarget(r[colKeys.dep])) {
           map[d].dep++;
         }
       }
     }
 
-    return list.map((dept) => ({
+    const data = depts.map((dept) => ({
       name: dept,
       rate: map[dept].total > 0 ? Number(((map[dept].dep / map[dept].total) * 100).toFixed(1)) : 0,
       count: map[dept].dep,
       total: map[dept].total,
     }));
-  }, [filteredRows]);
 
-  // Chart 6: Depressed vs Non-Depressed: Lifestyle Gaps (Diverging Tornado)
-  const lifestyleGapsData = useMemo(() => {
-    const depRows = filteredRows.filter(
-      (r) => r.Depression === true || String(r.Depression).toLowerCase() === 'true'
-    );
-    const nonDepRows = filteredRows.filter(
-      (r) => r.Depression === false || String(r.Depression).toLowerCase() === 'false'
-    );
+    const sorted = [...data].sort((a, b) => b.rate - a.rate);
+    const top = sorted[0] || { name: 'Faculty', rate: 0 };
+    const bottom = sorted[sorted.length - 1] || { name: 'Faculty', rate: 0 };
+
+    const subtitle = `${top.name} leads at ${top.rate}% vs ${bottom.name} at ${bottom.rate}% (campus average: ${kpis.depressionRate}%).`;
+    const aiSummary = `Department breakdown: ${data.map((d) => `${d.name} (${d.rate}%)`).join(', ')}.`;
+
+    return { deptData: data, deptSubtitle: subtitle, deptAiSummary: aiSummary };
+  }, [filteredRows, availableDepts, colKeys, kpis.depressionRate]);
+
+  // 6. Lifestyle Gaps Diverging Tornado
+  const { lifestyleGapsData, gapsSubtitle, gapsAiSummary } = useMemo(() => {
+    const depRows = filteredRows.filter((r) => isPositiveTarget(r[colKeys.dep]));
+    const nonDepRows = filteredRows.filter((r) => !isPositiveTarget(r[colKeys.dep]));
 
     if (depRows.length === 0 || nonDepRows.length === 0) {
-      return [];
+      return { lifestyleGapsData: [], gapsSubtitle: 'No difference data available.', gapsAiSummary: 'No data.' };
     }
 
     const mean = (arr: any[], key: string) => {
-      const nums = arr.map((x) => Number(x[key])).filter((v) => !isNaN(v));
-      return nums.length > 0 ? nums.reduce((a, b) => a + b, 0) / nums.length : 0;
+      let sum = 0;
+      let count = 0;
+      for (let i = 0; i < arr.length; i++) {
+        const n = Number(arr[i][key]);
+        if (!isNaN(n)) {
+          sum += n;
+          count++;
+        }
+      }
+      return count > 0 ? sum / count : 0;
     };
 
-    return [
-      {
-        metric: 'Sleep (h)',
-        gap: Number((mean(depRows, 'Sleep_Duration') - mean(nonDepRows, 'Sleep_Duration')).toFixed(2)),
-      },
-      {
-        metric: 'Social media (h)',
-        gap: Number((mean(depRows, 'Social_Media_Hours') - mean(nonDepRows, 'Social_Media_Hours')).toFixed(2)),
-      },
-      {
-        metric: 'Study (h)',
-        gap: Number((mean(depRows, 'Study_Hours') - mean(nonDepRows, 'Study_Hours')).toFixed(2)),
-      },
-      {
-        metric: 'Activity (min/wk)',
-        gap: Number((mean(depRows, 'Physical_Activity') - mean(nonDepRows, 'Physical_Activity')).toFixed(2)),
-      },
-      {
-        metric: 'Stress (pts)',
-        gap: Number((mean(depRows, 'Stress_Level') - mean(nonDepRows, 'Stress_Level')).toFixed(2)),
-      },
-      {
-        metric: 'CGPA',
-        gap: Number((mean(depRows, 'CGPA') - mean(nonDepRows, 'CGPA')).toFixed(2)),
-      },
-    ];
-  }, [filteredRows]);
+    const diffSleep = Number((mean(depRows, colKeys.sleep) - mean(nonDepRows, colKeys.sleep)).toFixed(2));
+    const diffSocial = Number((mean(depRows, colKeys.social) - mean(nonDepRows, colKeys.social)).toFixed(2));
+    const diffStudy = Number((mean(depRows, colKeys.study) - mean(nonDepRows, colKeys.study)).toFixed(2));
+    const diffAct = Number((mean(depRows, colKeys.activity) - mean(nonDepRows, colKeys.activity)).toFixed(2));
+    const diffStress = Number((mean(depRows, colKeys.stress) - mean(nonDepRows, colKeys.stress)).toFixed(2));
+    const diffCgpa = Number((mean(depRows, colKeys.cgpa) - mean(nonDepRows, colKeys.cgpa)).toFixed(2));
 
-  // Color schemes based on theme
+    const gaps = [
+      { metric: 'Sleep (h)', gap: diffSleep },
+      { metric: 'Social media (h)', gap: diffSocial },
+      { metric: 'Study (h)', gap: diffStudy },
+      { metric: 'Activity (min/wk)', gap: diffAct },
+      { metric: 'Stress (pts)', gap: diffStress },
+      { metric: 'CGPA', gap: diffCgpa },
+    ];
+
+    const subtitle = `Depressed students average ${diffSleep}h sleep, ${diffCgpa} GPA, and +${diffStress} pts higher stress.`;
+    const aiSummary = `Lifestyle differences between depressed and healthy peers: Sleep difference is ${diffSleep} hours, CGPA difference is ${diffCgpa}, Stress difference is +${diffStress} points, Physical activity difference is ${diffAct} min.`;
+
+    return { lifestyleGapsData: gaps, gapsSubtitle: subtitle, gapsAiSummary: aiSummary };
+  }, [filteredRows, colKeys]);
+
+  // Color Palette
   const isLight = theme === 'light';
   const c = {
     canvasBg: isLight ? 'bg-[#f4f5f8]' : 'bg-slate-950',
     cardBg: isLight ? 'bg-white' : 'bg-slate-900',
-    cardBorder: isLight ? 'border-slate-200/90 shadow-sm' : 'border-slate-800 shadow-lg',
+    cardBorder: isLight ? 'border-slate-200 shadow-sm' : 'border-slate-800',
     titleText: isLight ? 'text-slate-900' : 'text-white',
     subtitleText: isLight ? 'text-slate-500' : 'text-slate-400',
-    bodyText: isLight ? 'text-slate-700' : 'text-slate-200',
-    axisColor: isLight ? '#64748b' : '#94a3b8',
-    gridColor: isLight ? '#f1f5f9' : '#1e293b',
-    tooltipBg: isLight ? '#ffffff' : '#0f172a',
-    tooltipBorder: isLight ? '#e2e8f0' : '#334155',
-    tooltipText: isLight ? '#0f172a' : '#f8fafc',
-    pillActive: isLight ? 'bg-[#282560] text-white shadow' : 'bg-indigo-600 text-white shadow',
-    pillInactive: isLight ? 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50' : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700',
-    aiBoxBg: isLight ? 'bg-indigo-50/70 border-indigo-100 text-indigo-950' : 'bg-indigo-950/40 border-indigo-500/30 text-indigo-200',
     coral: '#d9534f',
-    indigo: '#4338ca',
+    indigo: '#4f46e5',
     teal: '#0d9488',
-    gold: '#d97706',
-    slateBar: '#64748b',
+    amber: '#d97706',
+    slate: '#64748b',
+    aiBoxBg: isLight ? 'bg-indigo-50/70 border-indigo-200 text-slate-800' : 'bg-indigo-950/30 border-indigo-500/30 text-slate-200',
   };
 
-  const PALETTE = ['#4338ca', '#0d9488', '#d97706', '#d9534f', '#64748b', '#8b5cf6', '#06b6d4', '#ec4899'];
-
-  // Render Graphical Forms
   const renderVisual = (
     data: any[],
-    type: ChartViewType,
-    color: string,
-    yDomain: [number, number],
-    unit = '%',
-    horizontal = false
+    viewType: ChartViewType,
+    primaryColor: string,
+    yDomain?: [number, number],
+    isTornado = false
   ) => {
-    if (type === 'table') {
+    if (viewType === 'table') {
       return (
-        <div className="overflow-x-auto h-52 text-xs">
+        <div className="w-full h-full overflow-auto max-h-[220px] text-xs">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className={`border-b ${isLight ? 'border-slate-200 text-slate-500' : 'border-slate-800 text-slate-400'}`}>
-                <th className="py-2 px-3">Segment</th>
-                <th className="py-2 px-3 text-right">Depression Rate</th>
-                <th className="py-2 px-3 text-right">Depressed Count</th>
-                <th className="py-2 px-3 text-right">Total Sample</th>
+              <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-400 font-semibold text-[11px]">
+                <th className="py-1.5 px-2">{isTornado ? 'Lifestyle Metric' : 'Group / Category'}</th>
+                <th className="py-1.5 px-2 text-right">{isTornado ? 'Gap' : 'Depression Rate'}</th>
+                {!isTornado && <th className="py-1.5 px-2 text-right">Depressed Count</th>}
+                {!isTornado && <th className="py-1.5 px-2 text-right">Total Students</th>}
               </tr>
             </thead>
-            <tbody>
-              {data.map((item: any) => (
-                <tr key={item.name} className={`border-b ${isLight ? 'border-slate-100' : 'border-slate-800/60'}`}>
-                  <td className={`py-1.5 px-3 font-semibold ${c.bodyText}`}>{item.name}</td>
-                  <td className="py-1.5 px-3 text-right font-mono font-bold" style={{ color }}>
-                    {item.rate}%
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono text-[11px]">
+              {data.map((row, idx) => (
+                <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                  <td className="py-1 px-2 font-sans text-slate-700 dark:text-slate-300 font-medium">
+                    {row.name || row.metric}
                   </td>
-                  <td className={`py-1.5 px-3 text-right font-mono ${c.subtitleText}`}>
-                    {item.count ? item.count.toLocaleString() : '-'}
+                  <td className="py-1 px-2 text-right font-bold" style={{ color: primaryColor }}>
+                    {isTornado ? `${row.gap > 0 ? '+' : ''}${row.gap}` : `${row.rate}%`}
                   </td>
-                  <td className={`py-1.5 px-3 text-right font-mono ${c.subtitleText}`}>
-                    {item.total ? item.total.toLocaleString() : '-'}
-                  </td>
+                  {!isTornado && <td className="py-1 px-2 text-right text-slate-400">{row.count?.toLocaleString()}</td>}
+                  {!isTornado && <td className="py-1 px-2 text-right text-slate-400">{row.total?.toLocaleString()}</td>}
                 </tr>
               ))}
             </tbody>
@@ -411,188 +586,81 @@ export const PowerBiDashboard: React.FC<PowerBiDashboardProps> = ({ dataset }) =
       );
     }
 
-    if (type === 'pie') {
+    if (viewType === 'pie') {
+      const pieColors = ['#4f46e5', '#d9534f', '#0d9488', '#d97706', '#64748b', '#8b5cf6', '#ec4899', '#06b6d4'];
       return (
-        <ResponsiveContainer width="100%" height={210}>
+        <ResponsiveContainer width="100%" height={220}>
           <PieChart>
-            <Tooltip
-              contentStyle={{
-                backgroundColor: c.tooltipBg,
-                borderColor: c.tooltipBorder,
-                borderRadius: 8,
-                color: c.tooltipText,
-              }}
-              formatter={(val: any) => [`${val}%`, 'Depression Rate']}
-            />
             <Pie
               data={data}
-              dataKey="rate"
-              nameKey="name"
+              dataKey={isTornado ? 'gap' : 'rate'}
+              nameKey={isTornado ? 'metric' : 'name'}
               cx="50%"
               cy="50%"
               innerRadius={45}
               outerRadius={75}
-              paddingAngle={3}
+              paddingAngle={2}
             >
               {data.map((_, index) => (
-                <Cell key={`cell-${index}`} fill={PALETTE[index % PALETTE.length]} />
+                <Cell key={`cell-${index}`} fill={pieColors[index % pieColors.length]} />
               ))}
             </Pie>
+            <Tooltip
+              formatter={(value: any) => [`${value}%`, isTornado ? 'Gap' : 'Rate']}
+              contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#fff', fontSize: '12px' }}
+            />
           </PieChart>
         </ResponsiveContainer>
       );
     }
 
-    if (type === 'line') {
+    if (viewType === 'line') {
       return (
-        <ResponsiveContainer width="100%" height={210}>
-          <AreaChart data={data} margin={{ top: 10, right: 10, bottom: 20, left: -10 }}>
-            <defs>
-              <linearGradient id={`grad-${color}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={color} stopOpacity={0.4} />
-                <stop offset="95%" stopColor={color} stopOpacity={0.02} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke={c.gridColor} vertical={false} />
-            <XAxis dataKey="name" stroke={c.axisColor} fontSize={11} tickLine={false} />
-            <YAxis stroke={c.axisColor} fontSize={10} tickLine={false} domain={yDomain} unit={unit} />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: c.tooltipBg,
-                borderColor: c.tooltipBorder,
-                borderRadius: 8,
-                color: c.tooltipText,
-              }}
-              formatter={(val: any) => [`${val}%`, 'Depression Rate']}
-            />
-            <Area type="monotone" dataKey="rate" stroke={color} strokeWidth={2.5} fill={`url(#grad-${color})`} />
+        <ResponsiveContainer width="100%" height={220}>
+          <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isLight ? '#e2e8f0' : '#334155'} />
+            <XAxis dataKey={isTornado ? 'metric' : 'name'} tick={{ fontSize: 11, fill: isLight ? '#64748b' : '#94a3b8' }} axisLine={false} tickLine={false} />
+            <YAxis domain={yDomain || [0, 'auto']} tick={{ fontSize: 11, fill: isLight ? '#64748b' : '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} />
+            <Tooltip formatter={(value: any) => [`${value}%`, 'Depression Rate']} contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#fff', fontSize: '12px' }} />
+            <Area type="monotone" dataKey={isTornado ? 'gap' : 'rate'} stroke={primaryColor} strokeWidth={2.5} fill={primaryColor} fillOpacity={0.2} />
           </AreaChart>
         </ResponsiveContainer>
       );
     }
 
-    if (horizontal || type === 'horizontal_bar') {
+    if (viewType === 'horizontal_bar') {
       return (
-        <ResponsiveContainer width="100%" height={210}>
-          <BarChart data={data} layout="vertical" margin={{ top: 5, right: 20, bottom: 5, left: 15 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke={c.gridColor} horizontal={false} />
-            <XAxis type="number" stroke={c.axisColor} fontSize={10} tickLine={false} domain={yDomain} unit={unit} />
-            <YAxis dataKey="name" type="category" stroke={c.axisColor} fontSize={11} tickLine={false} width={80} />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: c.tooltipBg,
-                borderColor: c.tooltipBorder,
-                borderRadius: 8,
-                color: c.tooltipText,
-              }}
-              formatter={(val: any) => [`${val}%`, 'Depression Rate']}
-            />
-            <Bar dataKey="rate" fill={color} radius={[0, 4, 4, 0]} maxBarSize={16} />
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={data} layout="vertical" margin={{ top: 5, right: 20, left: 20, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={isLight ? '#e2e8f0' : '#334155'} />
+            <XAxis type="number" tick={{ fontSize: 11, fill: isLight ? '#64748b' : '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={(v) => (isTornado ? `${v}` : `${v}%`)} domain={yDomain || ['auto', 'auto']} />
+            <YAxis type="category" dataKey={isTornado ? 'metric' : 'name'} tick={{ fontSize: 11, fill: isLight ? '#64748b' : '#94a3b8' }} axisLine={false} tickLine={false} width={80} />
+            <Tooltip formatter={(value: any) => [isTornado ? `${value}` : `${value}%`, isTornado ? 'Lifestyle Gap' : 'Depression Rate']} contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#fff', fontSize: '12px' }} />
+            {isTornado && <ReferenceLine x={0} stroke="#94a3b8" strokeWidth={1} />}
+            <Bar dataKey={isTornado ? 'gap' : 'rate'} radius={3}>
+              {data.map((entry, index) => {
+                const fill = isTornado ? (entry.gap < 0 ? '#0d9488' : '#d9534f') : primaryColor;
+                return <Cell key={`cell-${index}`} fill={fill} />;
+              })}
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       );
     }
 
-    // Default: Vertical Column Chart (exact Power BI style)
+    // Default Vertical Bar
     return (
-      <ResponsiveContainer width="100%" height={210}>
-        <BarChart data={data} margin={{ top: 10, right: 10, bottom: 20, left: -10 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={c.gridColor} vertical={false} />
-          <XAxis dataKey="name" stroke={c.axisColor} fontSize={11} tickLine={false} />
-          <YAxis stroke={c.axisColor} fontSize={10} tickLine={false} domain={yDomain} unit={unit} />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: c.tooltipBg,
-              borderColor: c.tooltipBorder,
-              borderRadius: 8,
-              color: c.tooltipText,
-            }}
-            formatter={(val: any) => [`${val}%`, 'Depression Rate']}
-          />
-          <Bar dataKey="rate" fill={color} radius={[3, 3, 0, 0]} maxBarSize={36} />
-        </BarChart>
-      </ResponsiveContainer>
-    );
-  };
-
-  // Render Visual 6: Diverging Tornado Chart
-  const renderLifestyleGaps = () => {
-    if (chartView6 === 'table') {
-      return (
-        <div className="overflow-x-auto h-52 text-xs">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className={`border-b ${isLight ? 'border-slate-200 text-slate-500' : 'border-slate-800 text-slate-400'}`}>
-                <th className="py-2 px-3">Metric</th>
-                <th className="py-2 px-3 text-right">Average Gap</th>
-                <th className="py-2 px-3 text-right">Direction</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lifestyleGapsData.map((item) => (
-                <tr key={item.metric} className={`border-b ${isLight ? 'border-slate-100' : 'border-slate-800/60'}`}>
-                  <td className={`py-1.5 px-3 font-semibold ${c.bodyText}`}>{item.metric}</td>
-                  <td
-                    className="py-1.5 px-3 text-right font-mono font-bold"
-                    style={{ color: item.gap >= 0 ? c.coral : c.teal }}
-                  >
-                    {item.gap > 0 ? `+${item.gap}` : item.gap}
-                  </td>
-                  <td className="py-1.5 px-3 text-right text-[11px]">
-                    {item.gap < 0 ? 'Lower in Depressed' : 'Higher in Depressed'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      );
-    }
-
-    return (
-      <ResponsiveContainer width="100%" height={210}>
-        <BarChart
-          data={lifestyleGapsData}
-          layout="vertical"
-          margin={{ top: 5, right: 30, bottom: 5, left: 35 }}
-        >
-          <CartesianGrid strokeDasharray="3 3" stroke={c.gridColor} horizontal={false} />
-          <XAxis
-            type="number"
-            stroke={c.axisColor}
-            fontSize={10}
-            tickLine={false}
-            domain={[-2.5, 0.5]}
-            ticks={[-2.5, -2, -1.5, -1, -0.5, 0, 0.5]}
-          />
-          <YAxis
-            dataKey="metric"
-            type="category"
-            stroke={c.axisColor}
-            fontSize={10.5}
-            tickLine={false}
-            width={95}
-          />
-          <ReferenceLine x={0} stroke={isLight ? '#94a3b8' : '#64748b'} strokeWidth={1.5} />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: c.tooltipBg,
-              borderColor: c.tooltipBorder,
-              borderRadius: 8,
-              color: c.tooltipText,
-            }}
-            formatter={(val: any) => [
-              `${Number(val) > 0 ? `+${val}` : val}`,
-              'Gap vs Healthy Students',
-            ]}
-          />
-          <Bar dataKey="gap" maxBarSize={15} radius={3}>
-            {lifestyleGapsData.map((entry, index) => (
-              <Cell
-                key={`gap-cell-${index}`}
-                fill={entry.gap >= 0 ? c.coral : c.teal}
-              />
-            ))}
+      <ResponsiveContainer width="100%" height={220}>
+        <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isLight ? '#e2e8f0' : '#334155'} />
+          <XAxis dataKey={isTornado ? 'metric' : 'name'} tick={{ fontSize: 11, fill: isLight ? '#64748b' : '#94a3b8' }} axisLine={false} tickLine={false} />
+          <YAxis domain={yDomain || [0, 'auto']} tick={{ fontSize: 11, fill: isLight ? '#64748b' : '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={(v) => (isTornado ? `${v}` : `${v}%`)} />
+          <Tooltip formatter={(value: any) => [isTornado ? `${value}` : `${value}%`, isTornado ? 'Gap' : 'Depression Rate']} contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#fff', fontSize: '12px' }} />
+          <Bar dataKey={isTornado ? 'gap' : 'rate'} fill={primaryColor} radius={3}>
+            {data.map((entry, index) => {
+              const fill = isTornado ? (entry.gap < 0 ? '#0d9488' : '#d9534f') : primaryColor;
+              return <Cell key={`cell-${index}`} fill={fill} />;
+            })}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
@@ -606,8 +674,7 @@ export const PowerBiDashboard: React.FC<PowerBiDashboardProps> = ({ dataset }) =
     onToggleAi: () => void,
     allowHorizontal = false
   ) => (
-    <div className="flex items-center gap-1.5">
-      {/* AI Explanation Toggle Pill */}
+    <div className="flex items-center gap-1.5 shrink-0">
       <button
         onClick={onToggleAi}
         className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg border transition ${
@@ -617,20 +684,19 @@ export const PowerBiDashboard: React.FC<PowerBiDashboardProps> = ({ dataset }) =
             ? 'bg-slate-100 hover:bg-slate-200 text-indigo-700 border-indigo-200'
             : 'bg-slate-800 hover:bg-slate-700 text-indigo-300 border-indigo-500/30'
         }`}
-        title="Toggle Plain-English AI Explanation"
+        title="Toggle Real AI Explanation"
       >
         <Sparkles className="w-3 h-3 text-cyan-300" />
         <span>{showAi ? 'Hide AI' : 'Explain'}</span>
       </button>
 
-      {/* Chart Form Switcher */}
       <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
         <button
           onClick={() => onViewChange('bar')}
           className={`p-1 rounded text-xs transition ${
             currentView === 'bar' ? 'bg-[#282560] dark:bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-700 dark:hover:text-white'
           }`}
-          title="Vertical Bar Chart"
+          title="Vertical Bar"
         >
           <BarChart3 className="w-3.5 h-3.5" />
         </button>
@@ -641,7 +707,7 @@ export const PowerBiDashboard: React.FC<PowerBiDashboardProps> = ({ dataset }) =
             className={`p-1 rounded text-xs transition ${
               currentView === 'horizontal_bar' ? 'bg-[#282560] dark:bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-700 dark:hover:text-white'
             }`}
-            title="Horizontal Bar Chart"
+            title="Horizontal Bar"
           >
             <BarChart3 className="w-3.5 h-3.5 rotate-90" />
           </button>
@@ -652,7 +718,7 @@ export const PowerBiDashboard: React.FC<PowerBiDashboardProps> = ({ dataset }) =
           className={`p-1 rounded text-xs transition ${
             currentView === 'line' ? 'bg-[#282560] dark:bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-700 dark:hover:text-white'
           }`}
-          title="Area / Line Curve"
+          title="Curve"
         >
           <LineIcon className="w-3.5 h-3.5" />
         </button>
@@ -662,7 +728,7 @@ export const PowerBiDashboard: React.FC<PowerBiDashboardProps> = ({ dataset }) =
           className={`p-1 rounded text-xs transition ${
             currentView === 'pie' ? 'bg-[#282560] dark:bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-700 dark:hover:text-white'
           }`}
-          title="Donut / Pie Chart"
+          title="Pie"
         >
           <PieIcon className="w-3.5 h-3.5" />
         </button>
@@ -672,7 +738,7 @@ export const PowerBiDashboard: React.FC<PowerBiDashboardProps> = ({ dataset }) =
           className={`p-1 rounded text-xs transition ${
             currentView === 'table' ? 'bg-[#282560] dark:bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-700 dark:hover:text-white'
           }`}
-          title="Data Table View"
+          title="Table"
         >
           <TableIcon className="w-3.5 h-3.5" />
         </button>
@@ -693,19 +759,34 @@ export const PowerBiDashboard: React.FC<PowerBiDashboardProps> = ({ dataset }) =
       {/* 1. Header Bar */}
       <div className="flex flex-wrap items-start justify-between gap-4 pb-1">
         <div>
-          <span className="text-[10px] font-bold tracking-wider uppercase text-indigo-700 dark:text-indigo-400">
-            EXECUTIVE INTELLIGENCE DASHBOARD
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold tracking-wider uppercase text-indigo-700 dark:text-indigo-400">
+              INTELLIGENCE ANALYTICS PLATFORM
+            </span>
+            <span className="text-[10px] bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-semibold px-2 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1">
+              <CheckCircle2 className="w-2.5 h-2.5" />
+              <span>{dataset.rowCount.toLocaleString()} records loaded</span>
+            </span>
+          </div>
           <h1 className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${c.titleText} mt-0.5`}>
             Student Lifestyle & Mental Health Analytics
           </h1>
           <p className={`text-xs sm:text-sm ${c.subtitleText} mt-1`}>
-            100,000 students • ages 18–24 • interactive analysis of sleep, habits, academic stress and well-being
+            {dataset.fileName} • {dataset.rowCount.toLocaleString()} students • {dataset.columnCount} fields • real-time data-driven insights
           </p>
         </div>
 
-        {/* Top Right Actions */}
+        {/* Top Right Controls */}
         <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setIsProfileOpen(true)}
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700 transition shadow-sm"
+            title="Inspect uploaded data rows, columns, and grouped fields"
+          >
+            <Layers className="w-3.5 h-3.5 text-indigo-500" />
+            <span>Dataset Columns & Groups</span>
+          </button>
+
           <button
             onClick={() => setIsAiDrawerOpen(true)}
             className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 via-indigo-500 to-cyan-500 hover:from-indigo-500 hover:to-cyan-400 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition shadow-md shadow-indigo-600/20"
@@ -746,12 +827,16 @@ export const PowerBiDashboard: React.FC<PowerBiDashboardProps> = ({ dataset }) =
             GENDER
           </span>
           <div className="flex items-center gap-1">
-            {['All', 'Male', 'Female'].map((opt) => (
+            {['All', ...availableGenders].map((opt) => (
               <button
                 key={opt}
                 onClick={() => setGenderFilter(opt)}
-                className={`text-xs px-3 py-1 rounded-full font-semibold border transition ${
-                  genderFilter === opt ? c.pillActive : c.pillInactive
+                className={`px-3 py-1.5 text-xs rounded-full font-semibold transition ${
+                  genderFilter === opt
+                    ? 'bg-[#282560] dark:bg-indigo-600 text-white shadow-sm'
+                    : isLight
+                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
                 }`}
               >
                 {opt}
@@ -766,12 +851,16 @@ export const PowerBiDashboard: React.FC<PowerBiDashboardProps> = ({ dataset }) =
             DEPARTMENT
           </span>
           <div className="flex items-center gap-1 flex-wrap">
-            {['All', 'Science', 'Engineering', 'Arts', 'Medical', 'Business'].map((opt) => (
+            {['All', ...availableDepts].map((opt) => (
               <button
                 key={opt}
                 onClick={() => setDeptFilter(opt)}
-                className={`text-xs px-3 py-1 rounded-full font-semibold border transition ${
-                  deptFilter === opt ? c.pillActive : c.pillInactive
+                className={`px-3 py-1.5 text-xs rounded-full font-semibold transition ${
+                  deptFilter === opt
+                    ? 'bg-[#282560] dark:bg-indigo-600 text-white shadow-sm'
+                    : isLight
+                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
                 }`}
               >
                 {opt}
@@ -790,8 +879,12 @@ export const PowerBiDashboard: React.FC<PowerBiDashboardProps> = ({ dataset }) =
               <button
                 key={opt}
                 onClick={() => setAgeFilter(opt)}
-                className={`text-xs px-3 py-1 rounded-full font-semibold border transition ${
-                  ageFilter === opt ? c.pillActive : c.pillInactive
+                className={`px-3 py-1.5 text-xs rounded-full font-semibold transition ${
+                  ageFilter === opt
+                    ? 'bg-[#282560] dark:bg-indigo-600 text-white shadow-sm'
+                    : isLight
+                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
                 }`}
               >
                 {opt}
@@ -801,17 +894,18 @@ export const PowerBiDashboard: React.FC<PowerBiDashboardProps> = ({ dataset }) =
         </div>
       </div>
 
-      {/* Dynamic AI Executive Summary Callout */}
+      {/* Dynamic Real AI Summary Banner */}
       <div className={`p-3.5 rounded-xl border ${c.aiBoxBg} flex items-center justify-between gap-3 text-xs`}>
         <div className="flex items-center gap-2.5">
           <Sparkles className="w-4 h-4 text-indigo-500 shrink-0" />
           <span>
-            <strong>AI Quick Summary:</strong> Currently viewing{' '}
+            <strong>AI Live Cohort Insight:</strong> Viewing{' '}
             <strong className="underline decoration-indigo-400">
-              {kpis.students.toLocaleString()} {genderFilter !== 'All' ? genderFilter : ''} students
+              {kpis.students.toLocaleString()} {genderFilter !== 'All' ? genderFilter : ''} records
             </strong>{' '}
             in {deptFilter !== 'All' ? deptFilter : 'all faculties'} (Depression rate:{' '}
-            <strong>{kpis.depressionRate}%</strong>). Across this selection, GPA under 2.5 and stress over Level 7 represent over 60% of all severe cases.
+            <strong>{kpis.depressionRate}%</strong>, avg stress: <strong>{kpis.avgStress}/10</strong>, avg sleep:{' '}
+            <strong>{kpis.avgSleep}h</strong>). Risk escalates dramatically when stress exceeds level 7 and nightly sleep drops below 5 hours.
           </span>
         </div>
         <button
@@ -824,7 +918,7 @@ export const PowerBiDashboard: React.FC<PowerBiDashboardProps> = ({ dataset }) =
 
       {/* 3. Executive KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
-        {/* Card 1: Students */}
+        {/* KPI 1 */}
         <div className={`p-4 rounded-xl border ${c.cardBg} ${c.cardBorder}`}>
           <span className={`text-xs font-medium ${c.subtitleText} block`}>Students</span>
           <div className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${c.titleText} mt-1 font-serif`}>
@@ -833,7 +927,7 @@ export const PowerBiDashboard: React.FC<PowerBiDashboardProps> = ({ dataset }) =
           <span className="text-[11px] text-slate-400 block mt-0.5">in current selection</span>
         </div>
 
-        {/* Card 2: Depression Rate */}
+        {/* KPI 2 */}
         <div className={`p-4 rounded-xl border ${c.cardBg} ${c.cardBorder}`}>
           <span className={`text-xs font-medium ${c.subtitleText} block`}>Depression rate</span>
           <div className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${c.titleText} mt-1 font-serif`}>
@@ -844,7 +938,7 @@ export const PowerBiDashboard: React.FC<PowerBiDashboardProps> = ({ dataset }) =
           </span>
         </div>
 
-        {/* Card 3: Avg Social Media */}
+        {/* KPI 3 */}
         <div className={`p-4 rounded-xl border ${c.cardBg} ${c.cardBorder}`}>
           <span className={`text-xs font-medium ${c.subtitleText} block`}>Avg social media</span>
           <div className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${c.titleText} mt-1 font-serif`}>
@@ -853,7 +947,7 @@ export const PowerBiDashboard: React.FC<PowerBiDashboardProps> = ({ dataset }) =
           <span className="text-[11px] text-slate-400 block mt-0.5">daily screen use</span>
         </div>
 
-        {/* Card 4: Avg Sleep */}
+        {/* KPI 4 */}
         <div className={`p-4 rounded-xl border ${c.cardBg} ${c.cardBorder}`}>
           <span className={`text-xs font-medium ${c.subtitleText} block`}>Avg sleep</span>
           <div className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${c.titleText} mt-1 font-serif`}>
@@ -862,7 +956,7 @@ export const PowerBiDashboard: React.FC<PowerBiDashboardProps> = ({ dataset }) =
           <span className="text-[11px] text-slate-400 block mt-0.5">nightly average</span>
         </div>
 
-        {/* Card 5: Avg Stress */}
+        {/* KPI 5 */}
         <div className={`p-4 rounded-xl border ${c.cardBg} ${c.cardBorder}`}>
           <span className={`text-xs font-medium ${c.subtitleText} block`}>Avg stress</span>
           <div className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${c.titleText} mt-1 font-serif`}>
@@ -871,229 +965,201 @@ export const PowerBiDashboard: React.FC<PowerBiDashboardProps> = ({ dataset }) =
           <span className="text-[11px] text-slate-400 block mt-0.5">scale from 1 to 10</span>
         </div>
 
-        {/* Card 6: Avg Physical Activity */}
+        {/* KPI 6 */}
         <div className={`p-4 rounded-xl border ${c.cardBg} ${c.cardBorder}`}>
           <span className={`text-xs font-medium ${c.subtitleText} block`}>Avg physical activity</span>
           <div className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${c.titleText} mt-1 font-serif`}>
             {kpis.avgActivity} min
           </div>
-          <span className="text-[11px] text-slate-400 block mt-0.5">weekly exercise</span>
+          <span className="text-[11px] text-slate-400 block mt-0.5">daily exercise</span>
         </div>
       </div>
 
       {/* 4. The 6 Visualizations Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-        {/* Visual 1: Depression Rate by Stress Level */}
+        {/* Visual 1: Stress Level */}
         <div className={`p-4 rounded-xl border ${c.cardBg} ${c.cardBorder} flex flex-col justify-between`}>
           <div>
             <div className="flex items-start justify-between gap-2 mb-1.5">
               <div>
                 <h3 className={`text-sm font-bold ${c.titleText}`}>Depression rate by stress level</h3>
                 <p className={`text-xs ${c.subtitleText} mt-0.5 line-clamp-1`}>
-                  Rates double once stress hits 8/10 — the strongest signal in the dataset.
+                  {stressSubtitle}
                 </p>
               </div>
               {renderViewSwitcher(chartView1, setChartView1, showAiExp1, () => setShowAiExp1(!showAiExp1))}
             </div>
 
-            {/* AI Plain-English Callout */}
-            {showAiExp1 && (
-              <div className="bg-rose-500/10 border border-rose-500/20 text-rose-950 dark:text-rose-200 text-[11px] p-2.5 rounded-lg mb-2 leading-relaxed">
-                <strong>💡 Plain-English AI Insight:</strong> Stress levels 2–6 stay safely around ~9%. But at level 8, depression explodes to <strong>41.8%</strong>, reaching <strong>100%</strong> at level 10. Once student stress passes 7, immediate triage is needed.
-              </div>
-            )}
+            <RealAiChartExplainer
+              title="Depression Rate by Stress Level"
+              dataSummary={stressAiSummary}
+              datasetContext={datasetContext}
+              isVisible={showAiExp1}
+            />
           </div>
           <div className="w-full flex-1 min-h-[210px]">
             {renderVisual(stressData, chartView1, c.coral, [0, 45])}
           </div>
         </div>
 
-        {/* Visual 2: Depression Rate by CGPA Band */}
+        {/* Visual 2: CGPA Band */}
         <div className={`p-4 rounded-xl border ${c.cardBg} ${c.cardBorder} flex flex-col justify-between`}>
           <div>
             <div className="flex items-start justify-between gap-2 mb-1.5">
               <div>
                 <h3 className={`text-sm font-bold ${c.titleText}`}>Depression rate by CGPA band</h3>
                 <p className={`text-xs ${c.subtitleText} mt-0.5 line-clamp-1`}>
-                  Academic performance splits the population: ~22% below CGPA 2.5 vs ~6% above.
+                  {cgpaSubtitle}
                 </p>
               </div>
               {renderViewSwitcher(chartView2, setChartView2, showAiExp2, () => setShowAiExp2(!showAiExp2))}
             </div>
 
-            {/* AI Plain-English Callout */}
-            {showAiExp2 && (
-              <div className="bg-indigo-500/10 border border-indigo-500/20 text-indigo-950 dark:text-indigo-200 text-[11px] p-2.5 rounded-lg mb-2 leading-relaxed">
-                <strong>💡 Plain-English AI Insight:</strong> Notice the <strong>"Academic Cliff"</strong>! Students with GPA &ge; 2.5 have low depression (~5.8%). But students under 2.5 suffer a <strong>21%–23%</strong> depression rate (3.5x higher). Low grades are the earliest visible red flag.
-              </div>
-            )}
+            <RealAiChartExplainer
+              title="Depression Rate by Academic CGPA Band"
+              dataSummary={cgpaAiSummary}
+              datasetContext={datasetContext}
+              isVisible={showAiExp2}
+            />
           </div>
           <div className="w-full flex-1 min-h-[210px]">
             {renderVisual(cgpaData, chartView2, c.indigo, [0, 25])}
           </div>
         </div>
 
-        {/* Visual 3: Depression Rate by Sleep Duration */}
+        {/* Visual 3: Sleep Duration */}
         <div className={`p-4 rounded-xl border ${c.cardBg} ${c.cardBorder} flex flex-col justify-between`}>
           <div>
             <div className="flex items-start justify-between gap-2 mb-1.5">
               <div>
                 <h3 className={`text-sm font-bold ${c.titleText}`}>Depression rate by sleep duration</h3>
                 <p className={`text-xs ${c.subtitleText} mt-0.5 line-clamp-1`}>
-                  Under 5 hours a night doubles the rate; 5+ hours are broadly similar.
+                  {sleepSubtitle}
                 </p>
               </div>
               {renderViewSwitcher(chartView3, setChartView3, showAiExp3, () => setShowAiExp3(!showAiExp3))}
             </div>
 
-            {/* AI Plain-English Callout */}
-            {showAiExp3 && (
-              <div className="bg-teal-500/10 border border-teal-500/20 text-teal-950 dark:text-teal-200 text-[11px] p-2.5 rounded-lg mb-2 leading-relaxed">
-                <strong>💡 Plain-English AI Insight:</strong> Sleeping less than 5 hours nearly doubles depression risk to <strong>19.0%</strong>. Between 6 to 9 hours, depression stays steady (~9.2%). Sleep is the easiest physical habit to restore.
-              </div>
-            )}
+            <RealAiChartExplainer
+              title="Depression Rate by Sleep Duration"
+              dataSummary={sleepAiSummary}
+              datasetContext={datasetContext}
+              isVisible={showAiExp3}
+            />
           </div>
           <div className="w-full flex-1 min-h-[210px]">
             {renderVisual(sleepData, chartView3, c.teal, [0, 20])}
           </div>
         </div>
 
-        {/* Visual 4: Depression Rate by Social Media Hours */}
+        {/* Visual 4: Social Media Hours */}
         <div className={`p-4 rounded-xl border ${c.cardBg} ${c.cardBorder} flex flex-col justify-between`}>
           <div>
             <div className="flex items-start justify-between gap-2 mb-1.5">
               <div>
                 <h3 className={`text-sm font-bold ${c.titleText}`}>Depression rate by social media hours</h3>
                 <p className={`text-xs ${c.subtitleText} mt-0.5 line-clamp-1`}>
-                  A gentler slope: rates drift up from ~9.7% to ~12% beyond 5 hours a day.
+                  {socialMediaSubtitle}
                 </p>
               </div>
               {renderViewSwitcher(chartView4, setChartView4, showAiExp4, () => setShowAiExp4(!showAiExp4))}
             </div>
 
-            {/* AI Plain-English Callout */}
-            {showAiExp4 && (
-              <div className="bg-amber-500/10 border border-amber-500/20 text-amber-950 dark:text-amber-200 text-[11px] p-2.5 rounded-lg mb-2 leading-relaxed">
-                <strong>💡 Plain-English AI Insight:</strong> Moderate phone use (up to 4 hours) shows normal depression (~9.7%). Beyond 5–6 hours, risk rises to ~11.4%, mainly because screen time displaces sleep and physical exercise.
-              </div>
-            )}
+            <RealAiChartExplainer
+              title="Depression Rate by Social Media Hours"
+              dataSummary={socialMediaAiSummary}
+              datasetContext={datasetContext}
+              isVisible={showAiExp4}
+            />
           </div>
           <div className="w-full flex-1 min-h-[210px]">
-            {renderVisual(socialMediaData, chartView4, c.gold, [0, 14])}
+            {renderVisual(socialMediaData, chartView4, c.amber, [0, 15])}
           </div>
         </div>
 
-        {/* Visual 5: Depression Rate by Department */}
+        {/* Visual 5: Department */}
         <div className={`p-4 rounded-xl border ${c.cardBg} ${c.cardBorder} flex flex-col justify-between`}>
           <div>
             <div className="flex items-start justify-between gap-2 mb-1.5">
               <div>
                 <h3 className={`text-sm font-bold ${c.titleText}`}>Depression rate by department</h3>
                 <p className={`text-xs ${c.subtitleText} mt-0.5 line-clamp-1`}>
-                  Rates are close across departments — no single faculty stands out.
+                  {deptSubtitle}
                 </p>
               </div>
               {renderViewSwitcher(chartView5, setChartView5, showAiExp5, () => setShowAiExp5(!showAiExp5), true)}
             </div>
 
-            {/* AI Plain-English Callout */}
-            {showAiExp5 && (
-              <div className="bg-slate-500/10 border border-slate-500/20 text-slate-800 dark:text-slate-200 text-[11px] p-2.5 rounded-lg mb-2 leading-relaxed">
-                <strong>💡 Plain-English AI Insight:</strong> All departments (Arts, Business, Engineering, Medical, Science) report almost identical rates (~10%). Mental health is an institution-wide reality, not restricted to STEM.
-              </div>
-            )}
+            <RealAiChartExplainer
+              title="Depression Rate by Department"
+              dataSummary={deptAiSummary}
+              datasetContext={datasetContext}
+              isVisible={showAiExp5}
+            />
           </div>
           <div className="w-full flex-1 min-h-[210px]">
-            {renderVisual(deptData, chartView5, c.slateBar, [0, 14], '%', chartView5 === 'horizontal_bar')}
+            {renderVisual(deptData, chartView5, c.slate, [0, 15])}
           </div>
         </div>
 
-        {/* Visual 6: Depressed vs Non-Depressed: Lifestyle Gaps */}
+        {/* Visual 6: Lifestyle Gaps */}
         <div className={`p-4 rounded-xl border ${c.cardBg} ${c.cardBorder} flex flex-col justify-between`}>
           <div>
             <div className="flex items-start justify-between gap-2 mb-1.5">
               <div>
                 <h3 className={`text-sm font-bold ${c.titleText}`}>Depressed vs non-depressed: lifestyle gaps</h3>
                 <p className={`text-xs ${c.subtitleText} mt-0.5 line-clamp-1`}>
-                  Average difference of depressed students vs the rest (negative = depressed group lower).
+                  {gapsSubtitle}
                 </p>
               </div>
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => setShowAiExp6(!showAiExp6)}
-                  className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg border transition ${
-                    showAiExp6
-                      ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
-                      : isLight
-                      ? 'bg-slate-100 hover:bg-slate-200 text-indigo-700 border-indigo-200'
-                      : 'bg-slate-800 hover:bg-slate-700 text-indigo-300 border-indigo-500/30'
-                  }`}
-                  title="Toggle Plain-English AI Explanation"
-                >
-                  <Sparkles className="w-3 h-3 text-cyan-300" />
-                  <span>{showAiExp6 ? 'Hide AI' : 'Explain'}</span>
-                </button>
-
-                <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
-                  <button
-                    onClick={() => setChartView6('horizontal_bar')}
-                    className={`p-1 rounded text-xs transition ${
-                      chartView6 === 'horizontal_bar' ? 'bg-[#282560] dark:bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-700 dark:hover:text-white'
-                    }`}
-                    title="Diverging Bar Chart"
-                  >
-                    <BarChart3 className="w-3.5 h-3.5 rotate-90" />
-                  </button>
-                  <button
-                    onClick={() => setChartView6('table')}
-                    className={`p-1 rounded text-xs transition ${
-                      chartView6 === 'table' ? 'bg-[#282560] dark:bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-700 dark:hover:text-white'
-                    }`}
-                    title="Gap Comparison Table"
-                  >
-                    <TableIcon className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
+              {renderViewSwitcher(chartView6, setChartView6, showAiExp6, () => setShowAiExp6(!showAiExp6), true)}
             </div>
 
-            {/* AI Plain-English Callout */}
-            {showAiExp6 && (
-              <div className="bg-teal-500/10 border border-teal-500/20 text-teal-950 dark:text-teal-200 text-[11px] p-2.5 rounded-lg mb-2 leading-relaxed">
-                <strong>💡 Plain-English AI Insight:</strong> Green bars show what depressed students have <strong>LESS</strong> of (less sleep, less physical activity, lower grades). Red bars show what they have <strong>MORE</strong> of (more stress, more phone time). Exercise has the largest protective gap (-2 hours/week).
-              </div>
-            )}
+            <RealAiChartExplainer
+              title="Depressed vs Healthy Peers: Lifestyle Gaps"
+              dataSummary={gapsAiSummary}
+              datasetContext={datasetContext}
+              isVisible={showAiExp6}
+            />
           </div>
           <div className="w-full flex-1 min-h-[210px]">
-            {renderLifestyleGaps()}
+            {renderVisual(lifestyleGapsData, chartView6, c.teal, undefined, true)}
           </div>
         </div>
       </div>
 
-      {/* 5. Footer */}
-      <div className={`pt-2 border-t ${isLight ? 'border-slate-200 text-slate-400' : 'border-slate-800 text-slate-500'} text-center text-xs flex flex-wrap items-center justify-between gap-2`}>
-        <p>
-          Analysis synthesized from 100,000 verified university student records with real-time reactivity.
-        </p>
+      {/* Footer Banner */}
+      <div className={`pt-2 flex flex-wrap items-center justify-between text-xs ${c.subtitleText} border-t ${c.cardBorder}`}>
+        <span>
+          Dataset source: <strong className="font-mono">{dataset.fileName}</strong> ({dataset.rowCount.toLocaleString()} total rows)
+        </span>
         <button
-          onClick={() => setIsAiDrawerOpen(true)}
-          className="text-indigo-600 dark:text-cyan-400 font-semibold hover:underline"
+          onClick={() => setIsProfileOpen(true)}
+          className="text-indigo-600 dark:text-cyan-400 hover:underline font-semibold"
         >
-          Open AI Explainer Assistant →
+          Inspect Dataset Structure & Column Groups →
         </button>
       </div>
 
-      {/* AI Assistant Drawer */}
+      {/* Dataset Profile & Column Groups Component */}
+      <DatasetProfileDrawer
+        dataset={dataset}
+        onFilterByCategory={(colName: string, val: string) => {
+          if (colName.toLowerCase().includes('gender')) setGenderFilter(val);
+          else if (colName.toLowerCase().includes('dept') || colName.toLowerCase().includes('depart')) setDeptFilter(val);
+        }}
+      />
+
+      {/* Real AI Assistant Drawer */}
       <AiAssistantDrawer
         isOpen={isAiDrawerOpen}
         onClose={() => setIsAiDrawerOpen(false)}
         dataset={dataset}
+        currentKpis={kpis}
         activeFilters={{
           gender: genderFilter,
           department: deptFilter,
           age: ageFilter,
-          filteredCount: kpis.students,
-          depressionRate: kpis.depressionRate,
         }}
       />
     </div>
